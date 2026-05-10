@@ -33,3 +33,8 @@ pip install -e ".[feetech]"
 
 - SO-101 leader arms (for teleoperation and demonstration recording)
 - SO-101 follower arms mounted on GUARDIAN chassis
+
+## Setup
+
+- Follow the tutorial on LeRobot to setup the leader and follower arms
+- Calibrate both the arms and test teleop mode. Verify both the arms are moving in perfect sync. 
