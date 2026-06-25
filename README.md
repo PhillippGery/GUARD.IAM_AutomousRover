@@ -48,7 +48,7 @@
 
 *GUARD.IAM v1 — holonomic mecanum platform with dual SO-101 arms, Scanse Sweep LIDAR, Intel RealSense T265, and AMD Ryzen AI compute. Built in 36 hours at StarkHacks 2026.*
 
-![Bimanual manipulation demo](70_media/demo/bimanual_manipulation_demo.mp4)
+![Bimanual manipulation demo](https://github.com/user-attachments/assets/58b780d2-d638-4a53-876a-c61e4d4fe11c)
 
 *Bimanual manipulation task — dual SO-101 arms executing a coordinated open-box sequence via LeRobot imitation learning.*
 
