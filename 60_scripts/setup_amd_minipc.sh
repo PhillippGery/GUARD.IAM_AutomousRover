@@ -62,33 +62,33 @@ echo "[3/7] Installing Python packages..."
 
 pip3 install pyserial numpy websockets
 
-# # ─── External ROS2 source repos ───────────────────────────────────────────────
-# echo "[4/7] Cloning external ROS2 source repos..."
+# ─── External ROS2 source repos ───────────────────────────────────────────────
+echo "[4/7] Cloning external ROS2 source repos..."
 
-# mkdir -p "$WS_SRC"
+mkdir -p "$WS_SRC"
 
-# if [ ! -d "$WS_SRC/l3xz_sweep_scanner" ]; then
-#   git clone https://github.com/107-systems/l3xz_sweep_scanner "$WS_SRC/l3xz_sweep_scanner"
-# else
-#   echo "  l3xz_sweep_scanner already cloned, skipping"
-# fi
+if [ ! -d "$WS_SRC/l3xz_sweep_scanner" ]; then
+  git clone https://github.com/107-systems/l3xz_sweep_scanner "$WS_SRC/l3xz_sweep_scanner"
+else
+  echo "  l3xz_sweep_scanner already cloned, skipping"
+fi
 
-# if [ ! -d "$WS_SRC/lerobot" ]; then
-#   git clone https://github.com/huggingface/lerobot "$WS_SRC/lerobot"
-# else
-#   echo "  lerobot already cloned, skipping"
-# fi
+if [ ! -d "$WS_SRC/lerobot" ]; then
+  git clone https://github.com/huggingface/lerobot "$WS_SRC/lerobot"
+else
+  echo "  lerobot already cloned, skipping"
+fi
 
-# # ─── LeRobot Python dependencies ─────────────────────────────────────────────
-# echo "[5/7] Installing LeRobot Python dependencies..."
+# ─── LeRobot Python dependencies ─────────────────────────────────────────────
+echo "[5/7] Installing LeRobot Python dependencies..."
 
-# pip3 install -e "$WS_SRC/lerobot[feetech]"
+pip3 install -e "$WS_SRC/lerobot[feetech]"
 
-# # ─── Intel RealSense udev rules ───────────────────────────────────────────────
-# echo "[6/7] Setting up Intel RealSense udev rules..."
+# ─── Intel RealSense udev rules ───────────────────────────────────────────────
+echo "[6/7] Setting up Intel RealSense udev rules..."
 
-# sudo apt install -y librealsense2-utils librealsense2-dev || \
-#   echo "Warning: librealsense2 not found in apt — install manually from Intel repo"
+sudo apt install -y librealsense2-utils librealsense2-dev || \
+  echo "Warning: librealsense2 not found in apt — install manually from Intel repo"
 
 # ─── Serial port permissions ──────────────────────────────────────────────────
 echo "[7/7] Adding user to dialout group for serial access..."
