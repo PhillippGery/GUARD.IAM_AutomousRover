@@ -17,3 +17,47 @@ mecanum_kinematics_node:
     wheel_base_length: 0.25
     wheel_base_width: 0.20
     max_rpm: 251.0
+
+# Add this block to guardian_bringup/config/robot_params.yaml
+#
+# Keeps the hardware map out of the source. Change wiring -> change this file,
+# not Python.
+
+phidget_bridge_node:
+  ros__parameters:
+
+    # ── Addressing ─────────────────────────────────────────────────────────
+    # Serial of the VINT HUB. All DCC1120s report this same number; the hub
+    # port is what distinguishes them.
+    hub_serial: 782265
+
+    # VINT hub port per wheel, order [FL, FR, BL, BR].
+    # -1 = not wired (that wheel is skipped, node still runs) — handy for
+    # bringing wheels up one at a time.
+    wheel_hub_ports: [0, 5, 2, 3]
+
+    # Per-wheel sign so +RPM drives that corner forward.
+    # Left and right motors are mirror-mounted, so they take opposite signs.
+    # Confirm each one empirically before trusting strafing.
+    wheel_directions: [1, -1, 1, -1]
+
+    # ── Calibration ────────────────────────────────────────────────────────
+    # 60/272: 12 commutations per motor rev x 22.667 gearbox = 272 per wheel
+    # rev, so the controller speaks wheel RPM. Verify on the bench once.
+    rescale_factor: 0.220588
+
+    # ── Limits / safety ────────────────────────────────────────────────────
+    current_limit: 10.0        # A (DCC1120 floor is 5A)
+    acceleration: 200.0        # wheel RPM/s
+    max_wheel_rpm: 170.0       # DCM4109 rated output
+    command_timeout_sec: 0.3   # no /wheel_rpm for this long -> stop
+
+    # ── Odometry ───────────────────────────────────────────────────────────
+    publish_odom: true
+    publish_tf: true           # set false if something else owns odom->base_link
+    odom_rate_hz: 50.0
+    wheel_radius: 0.0748       # VEX Pro 6"
+    wheel_base_length: 0.25
+    wheel_base_width: 0.20
+    odom_frame: odom
+    base_frame: base_link
