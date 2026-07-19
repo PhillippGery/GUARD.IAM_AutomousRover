@@ -62,6 +62,9 @@ def generate_launch_description():
         ]),
 
         # ── 4. ROS-GZ bridge ──────────────────────────────────────────────────
+        # GZ-side sensor topic is hardcoded '/scan' in guardian_sim.urdf.xacro;
+        # relayed to '/scan_filtered' below since nav2_params.yaml's costmaps
+        # and slam_toolbox now read from '/scan_filtered'.
         TimerAction(period=4.0, actions=[
             Node(
                 package='ros_gz_bridge',
@@ -77,6 +80,18 @@ def generate_launch_description():
                 ],
                 parameters=[{'use_sim_time': True}],
                 output='screen',
+            ),
+        ]),
+        TimerAction(period=4.5, actions=[
+            Node(
+                package='guardian_localization',
+                executable='lidar_republisher_node',
+                name='lidar_republisher_node',
+                parameters=[{
+                    'input_topic':  '/scan',
+                    'output_topic': '/scan_filtered',
+                    'frame_id':     'laser',
+                }, {'use_sim_time': True}],
             ),
         ]),
 

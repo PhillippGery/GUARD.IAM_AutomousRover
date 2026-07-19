@@ -334,8 +334,10 @@ sudo apt install \
 ### Build
 
 ```bash
-git clone https://github.com/PhillippGery/AutomousRover_StarkHacks.git
+git clone --recurse-submodules https://github.com/PhillippGery/AutomousRover_StarkHacks.git
 cd AutomousRover_StarkHacks
+# Already cloned without --recurse-submodules? Run:
+#   git submodule update --init --recursive
 
 # Install ROS dependencies
 cd 30_ros2_ws

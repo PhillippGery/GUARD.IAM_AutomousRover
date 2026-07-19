@@ -92,7 +92,7 @@ def generate_launch_description():
             name='lidar_republisher_node',
             parameters=[{
                 'input_topic':  '/sweep/scan',
-                'output_topic': '/scan',
+                'output_topic': '/scan_filtered',
                 'frame_id':     'laser',
             }],
         ),

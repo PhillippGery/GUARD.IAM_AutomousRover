@@ -14,6 +14,6 @@ serial_bridge_node:
 mecanum_kinematics_node:
   ros__parameters:
     wheel_radius: 0.0748
-    wheel_base_length: 0.25
-    wheel_base_width: 0.20
-    max_rpm: 251.0
+    wheel_base_length: 0.311588
+    wheel_base_width: 0.39075
+    max_rpm: 150

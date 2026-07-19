@@ -2,7 +2,7 @@ from setuptools import setup
 import os
 from glob import glob
 
-package_name = 'guardian_manipulation'
+package_name = 'guardian_navigation'
 
 setup(
     name=package_name,
@@ -16,12 +16,12 @@ setup(
     zip_safe=True,
     maintainer='Phillipp Gery',
     maintainer_email='phillipp@example.com',
-    description='Dual SO-101 arm management and LeRobot bridge for GUARDIAN',
+    description='High-level autonomous navigation behaviors for GUARDIAN',
     license='MIT',
     entry_points={
         'console_scripts': [
-            'arm_manager_node = guardian_manipulation.arm_manager_node:main',
-            'teleop_bridge_node = guardian_manipulation.teleop_bridge_node:main',
+            'demo_mission_node = guardian_navigation.demo_mission_node:main',
+            'localization_bootstrap_node = guardian_navigation.localization_bootstrap_node:main',
         ],
     },
 )

@@ -13,6 +13,8 @@ setup(
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'launch'), glob('launch/*.py')),
         (os.path.join('share', package_name, 'config'), glob('config/*.yaml') + glob('config/*.rviz') + glob('config/*.json') + glob('config/*.xml')),
+        (os.path.join('share', package_name, 'scripts'), glob('scripts/*.sh')),
+        (os.path.join('share', package_name, 'maps'), glob('maps/*')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -21,9 +23,6 @@ setup(
     description='Launch files, EKF config, and Nav2 config for GUARDIAN',
     license='MIT',
     entry_points={
-        'console_scripts': [
-            'demo_mission_node = guardian_bringup.demo_mission_node:main',
-            'dummy_odom_node = guardian_bringup.dummy_odom_node:main',
-        ],
+        'console_scripts': [],
     },
 )
