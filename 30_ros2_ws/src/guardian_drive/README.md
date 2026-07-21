@@ -22,7 +22,7 @@ Mecanum wheel kinematics, Arduino serial bridge, and a dummy odometry source for
 
 ## How to Launch or Run
 
-Normally brought up as part of `guardian_bringup` (e.g. `guardian_nav.launch.py`, `guardian_real.launch.py`). To run standalone:
+Normally brought up as part of `guardian_bringup` (`guardian.launch.py`, any mode). To run standalone:
 
 ```bash
 ros2 run guardian_drive mecanum_kinematics_node

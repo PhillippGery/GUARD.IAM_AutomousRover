@@ -21,4 +21,4 @@ colcon build --symlink-install
 echo ""
 echo "Build complete."
 echo "Run: source 30_ros2_ws/install/setup.bash"
-echo "Then: ros2 launch guardian_bringup guardian_full.launch.py"
+echo "Then: ros2 launch guardian_bringup guardian.launch.py"

@@ -14,27 +14,37 @@ echo "========================================"
 echo "  GUARDIAN Launch Menu"
 echo "  StarkHacks 2026 | Purdue University"
 echo "========================================"
-echo "  1) Full autonomous mode"
-echo "  2) Teleop only"
-echo "  3) Arms only"
-echo "  4) Motor test"
+echo "  1) Sim, autonomous navigation"
+echo "  2) Real hardware, mapping (drives + builds a map)"
+echo "  3) Real hardware, autonomous navigation"
+echo "  4) Teleop only (standalone keyboard node)"
+echo "  5) Arms only"
+echo "  6) Motor test"
 echo "========================================"
-read -rp "Select [1-4]: " choice
+read -rp "Select [1-6]: " choice
 
 case $choice in
   1)
-    echo "Launching full autonomous mode..."
-    ros2 launch guardian_bringup guardian_full.launch.py
+    echo "Launching sim, autonomous navigation..."
+    ros2 launch guardian_bringup guardian.launch.py
     ;;
   2)
-    echo "Launching teleop mode..."
-    ros2 launch guardian_bringup guardian_teleop.launch.py
+    echo "Launching real hardware, mapping mode..."
+    ros2 launch guardian_bringup guardian.launch.py use_sim:=false mode:=mapping
     ;;
   3)
-    echo "TODO: arms-only launch not yet implemented"
-    # ros2 launch guardian_arms guardian_arms.launch.py
+    echo "Launching real hardware, autonomous navigation..."
+    ros2 launch guardian_bringup guardian.launch.py use_sim:=false
     ;;
   4)
+    echo "Launching teleop (standalone)..."
+    ros2 run guardian_teleop keyboard_teleop_node
+    ;;
+  5)
+    echo "TODO: arms-only launch not yet implemented"
+    # ros2 launch guardian_manipulation guardian_manipulation.launch.py
+    ;;
+  6)
     echo "TODO: motor test script not yet implemented"
     # ros2 run guardian_drive serial_bridge_node --ros-args -p test_mode:=true
     ;;

@@ -19,7 +19,7 @@ LIDAR republishing and sensor preprocessing to feed Nav2 costmaps and the EKF.
 
 ## How to Launch or Run
 
-Brought up as part of `guardian_bringup` (`guardian_nav.launch.py`, `guardian_mapping.launch.py`, `guardian_real.launch.py`). To run standalone:
+Brought up as part of `guardian_bringup` (`guardian.launch.py`, any mode). To run standalone:
 
 ```bash
 ros2 run guardian_localization lidar_republisher_node

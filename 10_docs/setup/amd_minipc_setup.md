@@ -86,7 +86,7 @@ Plug both SO-101 follower arms into separate USB-C ports. Verify with `lsusb`.
 ```bash
 source /opt/ros/jazzy/setup.bash
 source ~/GUARDIAN/30_ros2_ws/install/setup.bash
-ros2 launch guardian_bringup guardian_full.launch.py
+ros2 launch guardian_bringup guardian.launch.py use_sim:=false
 ```
 
 Or use the menu script:

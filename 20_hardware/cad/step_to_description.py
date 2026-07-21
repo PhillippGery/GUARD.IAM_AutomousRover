@@ -33,7 +33,7 @@ What it does:
      guardian_description/meshes/.
   5. Writes the measured wheel spacing/radius and lidar mount offsets to
      urdf/dimensions.xacro as <xacro:property> values, included by
-     guardian_sim.urdf.xacro instead of hand-typed numbers.
+     guardian.urdf.xacro instead of hand-typed numbers.
 """
 import math
 import sys

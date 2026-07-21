@@ -122,13 +122,18 @@ Nav2 full navigation stack configured for indoor confined spaces. The rover rece
 <details>
 <summary><b>Launch configurations</b></summary>
 
-| Launch file | Purpose |
-|---|---|
-| `guardian_full.launch.py` | Full system: localization + Nav2 + arms + teleop |
-| `guardian_nav.launch.py` | Navigation only (no arms) |
-| `guardian_mapping.launch.py` | SLAM mapping mode |
-| `guardian_teleop.launch.py` | Teleoperation only |
-| `guardian_real.launch.py` | Real hardware (no simulation) |
+One unified launch file, `guardian.launch.py`, covers every combination via arguments:
+
+```bash
+ros2 launch guardian_bringup guardian.launch.py                                  # sim, navigation, RViz
+ros2 launch guardian_bringup guardian.launch.py use_sim:=false mode:=mapping     # real hardware, SLAM mapping
+ros2 launch guardian_bringup guardian.launch.py use_sim:=false                  # real hardware, navigation
+ros2 launch guardian_bringup guardian.launch.py rviz:=false                     # headless
+```
+
+Key arguments: `use_sim` (`true`/`false`), `mode` (`mapping`/`navigation`), `rviz`,
+`teleop`, `map`, `known_pose`, `world`/`spawn_x`/`spawn_y`/`spawn_z` (sim only).
+See `30_ros2_ws/src/guardian_bringup/README.md` for the full list.
 
 Nav2 behavior tree: `config/navigate_to_pose.xml` — standard navigate-to-pose with obstacle recovery.
 
@@ -364,34 +369,37 @@ pio run --target upload
 
 ## Running the System
 
-### Full autonomous system
+One unified launch file, `guardian.launch.py`, covers every mode via arguments —
+sim vs. real hardware, mapping vs. navigation, RViz on/off, teleop on/off.
+
+### Sim, autonomous navigation (default)
 
 ```bash
 cd 30_ros2_ws && source install/setup.bash
-ros2 launch guardian_bringup guardian_full.launch.py
+ros2 launch guardian_bringup guardian.launch.py
 ```
 
-Or via convenience script:
+Or via convenience script (interactive menu):
 ```bash
 bash 60_scripts/run_guardian.sh
 ```
 
-### Mapping (build a map first)
+### Mapping (build a map first — real hardware; mapping a sim world isn't useful)
 
 ```bash
-ros2 launch guardian_bringup guardian_mapping.launch.py
+ros2 launch guardian_bringup guardian.launch.py use_sim:=false mode:=mapping
 ```
 
-### Navigation only
+### Real hardware, navigation
 
 ```bash
-ros2 launch guardian_bringup guardian_nav.launch.py
+ros2 launch guardian_bringup guardian.launch.py use_sim:=false
 ```
 
 ### Teleoperation only
 
 ```bash
-ros2 launch guardian_bringup guardian_teleop.launch.py
+ros2 run guardian_teleop keyboard_teleop_node
 ```
 
 ### Meta Quest 3 bridge
@@ -406,10 +414,10 @@ python3 50_teleop/quest_bridge/websocket_bridge.py
 
 | Parameter | Default | Description |
 |---|---|---|
-| `wheel_radius` | 0.0748 m | Mecanum wheel radius (6" VEXpro) |
-| `wheel_base_length` | 0.25 m | Front-to-rear wheel center distance |
-| `wheel_base_width` | 0.20 m | Left-to-right wheel center distance |
-| `max_rpm` | 251.0 | Maximum wheel RPM (clamped with ratio preservation) |
+| `wheel_radius` | 0.0775 m | Mecanum wheel radius (6" VEXpro), CAD-measured |
+| `wheel_base_length` | 0.313588 m | Front-to-rear wheel center distance, CAD-measured |
+| `wheel_base_width` | 0.390755 m | Left-to-right wheel center distance, CAD-measured |
+| `max_rpm` | 170.0 | Maximum wheel RPM (DCM4109 rated max, clamped with ratio preservation) |
 | EKF rate | 50 Hz | `robot_localization` filter update rate |
 | T265 rate | 30 Hz | Visual-inertial odometry input rate |
 | IMU rate | 100 Hz | MPU-6050 orientation input rate |

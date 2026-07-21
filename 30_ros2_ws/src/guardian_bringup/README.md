@@ -14,19 +14,38 @@ None published or subscribed directly — see the launch files below for which p
 
 ## Launch Files
 
+One unified launch file covers every sim/real × mapping/navigation combination —
+the separate `guardian_sim`/`guardian_nav`/`guardian_mapping`/`guardian_real`/
+`guardian_full`/`guardian_teleop` launch files that used to exist here have been
+removed; everything they did is now an argument on `guardian.launch.py`.
+
 | File | Purpose |
 |------|---------|
-| `guardian_full.launch.py` | Full autonomous mode — all nodes |
-| `guardian_sim.launch.py` | Gazebo simulation with Nav2 |
-| `guardian_nav.launch.py` | Navigation only — no arms, no Quest |
-| `guardian_mapping.launch.py` | SLAM mapping mode (slam_toolbox) |
-| `guardian_real.launch.py` | Real-robot bringup (sensors + Nav2, no sim) |
-| `guardian_teleop.launch.py` | Teleop fallback — keyboard/joystick + drive |
+| `guardian.launch.py` | Every mode: sim or real hardware, mapping (SLAM) or navigation (AMCL + saved map) |
 
 ```bash
-ros2 launch guardian_bringup guardian_sim.launch.py
-ros2 launch guardian_bringup guardian_nav.launch.py
+# Sim, autonomous navigation, RViz open (defaults)
+ros2 launch guardian_bringup guardian.launch.py
+
+# Real hardware, build a new map (mapping a sim world isn't useful)
+ros2 launch guardian_bringup guardian.launch.py use_sim:=false mode:=mapping
+
+# Real hardware, navigation
+ros2 launch guardian_bringup guardian.launch.py use_sim:=false
+
+# Headless (no RViz) — e.g. autonomous/unattended startup
+ros2 launch guardian_bringup guardian.launch.py rviz:=false
 ```
+
+Key arguments: `use_sim` (`true`/`false`, default `true`), `mode` (`mapping`/`navigation`,
+default `navigation`), `rviz` (default `true`), `teleop` (auto: on for mapping,
+off for navigation), `map` (map yaml to load in navigation mode), `known_pose`
+(auto: known spawn point in sim, AMCL global localization on real hardware),
+`world`/`spawn_x`/`spawn_y`/`spawn_z` (sim only). See `guardian.launch.py`'s
+`DeclareLaunchArgument` calls for the full list and descriptions.
+
+The aliases in `60_scripts/guardiam_env.sh` (`guardiam_sim`, `guardiam_map`,
+`guardiam_real`) wrap the common cases.
 
 ## Config Files
 
@@ -34,13 +53,14 @@ ros2 launch guardian_bringup guardian_nav.launch.py
 |------|---------|
 | `ekf_params.yaml` / `ekf_params_real.yaml` | robot_localization EKF configuration (sim / real) |
 | `nav2_params.yaml` / `nav2_params_real.yaml` | Nav2 navigation stack parameters (sim / real) |
-| `robot_params.yaml` | Robot geometry, serial port, hardware params |
+| `robot_params.yaml` | Robot geometry, serial port, hardware params (single source of truth via a `/**` wildcard block) |
+| `lidar_filter_params.yaml` | Per-sensor LIDAR self-occlusion masking (front/back) |
 | `navigate_to_pose.xml` | Nav2 behavior tree for `navigate_to_pose` |
-| `guardian.rviz`, `guardian_nav.rviz`, `guardian_mapping.rviz`, `guardian_real.rviz` | RViz display configs per mode |
+| `guardian_nav.rviz`, `guardian_mapping.rviz` | RViz display configs, selected by `mode` |
 
 ## Known Issues / Dependencies
 
 - `bt_navigator` needs `wait_for_service_timeout: 3000` in `nav2_params*.yaml` or it fails to find `behavior_server` on slower hardware.
 - `behavior_server` must be listed before `bt_navigator` in the `node_names` array of the lifecycle manager config.
-- `autostart` is `False` in the Nav2 params — the Nav2 lifecycle must be started manually (click "Startup" in RViz) after launch.
+- `autostart: true` in the Nav2 params — the Nav2 lifecycle starts automatically on launch, no manual "Startup" click needed.
 - Depends on `guardian_description`, `guardian_drive`, `guardian_localization`, `guardian_manipulation`, `guardian_navigation`, `guardian_teleop`, plus `nav2_bringup`, `robot_localization`, `slam_toolbox`, `realsense2_camera`, `l3xz_sweep_scanner`, `rviz2`, `xacro`.

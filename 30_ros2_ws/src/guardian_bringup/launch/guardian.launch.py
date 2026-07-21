@@ -65,9 +65,14 @@ def launch_setup(context, *args, **kwargs):
     lidar_filter_params = os.path.join(
         bringup_dir, 'config', 'lidar_filter_params.yaml')
 
-    xacro_file = os.path.join(
-        description_dir, 'urdf',
-        'guardian_sim.urdf.xacro' if use_sim else 'guardian.urdf.xacro')
+    # One shared xacro file for sim and real — its <gazebo> blocks
+    # (MecanumDrive plugin, gpu_lidar sensors) are only ever acted on by
+    # Gazebo; robot_state_publisher and RViz safely ignore them otherwise,
+    # so there's no need to conditionally strip them for real hardware.
+    # Two near-duplicate files used to exist here; the real-hardware copy
+    # silently never got any of the CAD-mesh/dual-LIDAR updates made to
+    # the sim copy.
+    xacro_file = os.path.join(description_dir, 'urdf', 'guardian.urdf.xacro')
     robot_desc = xacro.process_file(xacro_file).toxml()
 
     actions = [
@@ -120,8 +125,8 @@ def launch_setup(context, *args, **kwargs):
                     name='gz_bridge',
                     arguments=[
                         # GZ-side sensor topic is hardcoded '/scan' in
-                        # guardian_sim.urdf.xacro; parameter_bridge's simple
-                        # CLI form requires the same name on both sides, so
+                        # guardian.urdf.xacro's lidar macro; parameter_bridge's
+                        # simple CLI form requires the same name on both sides, so
                         # this stays '/scan' and gets relayed to
                         # '/scan_filtered' below via lidar_republisher_node.
                         '/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
@@ -167,7 +172,7 @@ def launch_setup(context, *args, **kwargs):
                 # Combines both filtered scans into one virtual 360° scan
                 # on /scan_filtered — the topic Nav2/SLAM actually consume.
                 # front_x/y/yaw and back_x/y/yaw must match the `lidar`
-                # xacro macro instantiations in guardian_sim.urdf.xacro
+                # xacro macro instantiations in guardian.urdf.xacro
                 # (lidar_front_*/lidar_back_* come from dimensions.xacro,
                 # auto-generated off the CAD — update these to match if
                 # that ever changes).

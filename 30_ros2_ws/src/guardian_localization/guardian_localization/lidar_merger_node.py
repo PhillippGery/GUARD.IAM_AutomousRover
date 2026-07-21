@@ -8,7 +8,7 @@
 #          than at a shared origin, so this isn't just concatenating
 #          ranges — each beam is converted to a point in base_link's
 #          frame (using that sensor's fixed x/y/yaw offset — see
-#          guardian_sim.urdf.xacro's laser/laser_back joints) and then
+#          guardian.urdf.xacro's laser/laser_back joints) and then
 #          re-binned into one scan by angle from base_link's own origin,
 #          keeping the closer of the two returns if both sensors saw
 #          something in the same bin.
@@ -41,7 +41,7 @@ class LidarMergerNode(Node):
 
         # Each sensor's fixed offset from base_link — must match the x/y
         # and yaw given to the `lidar` xacro macro in
-        # guardian_sim.urdf.xacro (lidar_front_*/lidar_back_* come from
+        # guardian.urdf.xacro (lidar_front_*/lidar_back_* come from
         # dimensions.xacro, auto-generated off the CAD). yaw is radians;
         # the back unit is physically mounted rotated 180 degrees so its
         # own "forward" points away from the chassis, not into it.
@@ -53,7 +53,7 @@ class LidarMergerNode(Node):
         self.declare_parameter('back_yaw', math.pi)
 
         # Output virtual scan geometry — matches the raw gpu_lidar sensor
-        # config in guardian_sim.urdf.xacro (500 samples, full circle,
+        # config in guardian.urdf.xacro (500 samples, full circle,
         # 0.1-20m) so nothing is lost re-binning either sensor into this.
         self.declare_parameter('num_samples', 500)
         self.declare_parameter('range_min', 0.1)

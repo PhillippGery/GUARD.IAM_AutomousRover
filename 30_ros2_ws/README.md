@@ -6,12 +6,13 @@ ROS2 Jazzy workspace — Ubuntu 24.04, pure Python (ament_python).
 
 | Package | Owner | Purpose |
 |---------|-------|---------|
-| [guardian_bringup](src/guardian_bringup/) | Phillipp | Launch files, EKF config, Nav2 config |
-| [guardian_description](src/guardian_description/) | Phillipp | URDF/xacro robot model + Gazebo sim world |
-| [guardian_drive](src/guardian_drive/) | Phillipp | Mecanum kinematics + ESP32 serial bridge |
-| [guardian_localization](src/guardian_localization/) | Phillipp | LIDAR republisher, sensor prep for Nav2 |
-| [guardian_arms](src/guardian_arms/) | Dipam | Dual SO-101 arm management + LeRobot bridge |
-| [guardian_teleop](src/guardian_teleop/) | Victor | Quest 3 + joystick + keyboard teleoperation |
+| [guardian_bringup](src/guardian_bringup/) | Phillipp | Launch files, EKF/Nav2/RViz config — no nodes of its own |
+| [guardian_description](src/guardian_description/) | Phillipp | URDF/xacro robot model (CAD-derived meshes) + Gazebo sim world |
+| [guardian_drive](src/guardian_drive/) | Phillipp/Vedant | Mecanum kinematics + Phidgets DCC1120 motor bridge (`phidget_bridge_node`, direct VINT/Phidget22 API — `serial_bridge_node` is an older serial-port-based fallback) |
+| [guardian_localization](src/guardian_localization/) | Phillipp | LIDAR republisher (self-occlusion masking) + front/back scan merger, feeds Nav2 |
+| [guardian_manipulation](src/guardian_manipulation/) | Dipam | Dual SO-101 arm management + LeRobot bridge |
+| [guardian_navigation](src/guardian_navigation/) | Phillipp | Automatic AMCL localization bootstrap on launch |
+| [guardian_teleop](src/guardian_teleop/) | Victor | Quest 3 + joystick + keyboard (evdev, real press/release) teleoperation |
 
 ---
 
@@ -33,12 +34,14 @@ colcon build --packages-select <package_name>
 
 ## Keyboard Teleop (WASD)
 
-> Requires ESP32 connected on `/dev/ttyACM0`
+Reads the keyboard directly via evdev (real press/release, holds a direction
+only while the key is down, multiple keys combine for diagonal driving) — see
+`guardian_teleop`'s README for one-time `input`-group setup.
 
 ```bash
-cd ~/AutomousRover_StarkHacks/30_ros2_ws
+cd ~/GUARD.IAM_AutomousRover/30_ros2_ws
 source /opt/ros/jazzy/setup.bash && source install/setup.bash
-ros2 launch guardian_bringup guardian_teleop.launch.py
+ros2 run guardian_teleop keyboard_teleop_node
 ```
 
 Controls:
@@ -50,31 +53,26 @@ Controls:
 | `d` | Strafe right |
 | `q` | Rotate left |
 | `e` | Rotate right |
-| `space` | Stop |
-| `x` | Quit |
+| `space` / `k` | Stop |
+| `+` / `-` | Speed up/down |
+| `x` / `Esc` | Quit |
 
 ---
 
 ## LIDAR
 
-> Requires Scanse Sweep connected via USB (FTDI adapter)
+> Two Scanse Sweep units (front + back), each on a stable udev-assigned path —
+> see `60_scripts/README.md` for the one-time `/dev/lidar_front`/`/dev/lidar_back`
+> setup (do not hardcode `/dev/ttyUSB0`/`1`, which shift with USB plug order).
 
-```bash
-cd ~/AutomousRover_StarkHacks/30_ros2_ws
-source /opt/ros/jazzy/setup.bash && source install/setup.bash
-ros2 launch l3xz_sweep_scanner laser.py
-```
+Brought up automatically by `guardian.launch.py` (both units → merged, masked
+`/scan_filtered`). To check a single raw unit directly:
 
-Visualize in RViz (open a new terminal):
-```bash
-source /opt/ros/jazzy/setup.bash
-rviz2 --display-config /home/aup/AutomousRover_StarkHacks/30_ros2_ws/src/l3xz_sweep_scanner/rviz/laser.rviz
-```
-
-Check LIDAR topic:
 ```bash
 source /opt/ros/jazzy/setup.bash && source install/setup.bash
-ros2 topic echo /l3xz/laser --once
+ros2 topic echo /scan --once        # front, raw
+ros2 topic echo /scan_back --once   # back, raw
+ros2 topic echo /scan_filtered --once  # merged + masked, what Nav2/SLAM use
 ```
 
 ---
@@ -85,7 +83,7 @@ ros2 topic echo /l3xz/laser --once
 # All USB devices
 lsusb
 
-# Serial ports (ESP32 = ttyACM0, LIDAR = ttyUSB0)
+# Serial ports (LIDARs — see udev setup above for stable /dev/lidar_front/back)
 ls /dev/ttyUSB* /dev/ttyACM*
 
 # Camera
@@ -96,34 +94,28 @@ ls /dev/video*
 
 ## Hardware Setup
 
-### ESP32 Serial Ports
+### Drive Motors — Phidgets DCC1120 / DCM4109
 
-| Port | Board | Motors |
-|------|-------|--------|
-| `/dev/ttyACM0` | LEFT ESP32 | M1 = Front-Left, M2 = Rear-Left |
-| `/dev/ttyACM1` | RIGHT ESP32 | M1 = Front-Right, M2 = Rear-Right |
-| `/dev/ttyUSB0` | Scanse Sweep LIDAR | FTDI adapter |
-
-### ESP32 Serial Protocol
-
-- Host → ESP32: `M1:<rpm> M2:<rpm>\n` (float RPM values)
-- ESP32 → Host: `ENC:M1:<ticks> M2:<ticks>\n` (cumulative ticks, every 50ms)
-- CPR = 175 (700 ticks/rev gearbox ÷ 4, RISING-edge single-channel)
-- Safety stop: motors halt if no command received for 2000ms
-
-### Motor Specs (FIT0186 / DFRobot GB37Y3530-12V-251R)
+Four Phidgets DCC1120 BLDC motor controllers on one VINT hub, addressed by hub
+port (all four controllers report the hub's own serial number, not their own —
+see `phidget_bridge_node.py`'s header comment for the full addressing model).
+`20_hardware/phidgets/enumerate_phidgets.py` maps hub ports to controllers;
+`20_hardware/phidgets/spin_test.py` bench-tests individual wheels.
 
 | Parameter | Value |
 |-----------|-------|
-| Gear ratio | 43.8:1 |
-| No-load RPM | 251 RPM |
-| Encoder CPR | 175 ticks/rev (effective) |
-| Start voltage | 1V (low-speed capable) |
-| Wheel radius | 74.8 mm |
+| Motor | DCM4109, NEMA23 BLDC, 22.667:1 gearbox |
+| Rated max speed | 170 RPM (wheel output) |
+| Encoder | Built-in hall sensors — 4-pole x 6 states/electrical-rev x gearbox = 272 ticks/wheel-rev (confirmed on the real robot) |
+| Wheel | VEX Pro 6" mecanum, radius 0.0775 m (CAD-measured) |
+
+All of the above live in one place — `guardian_bringup/config/robot_params.yaml`'s
+`/**` wildcard block — not scattered per-node.
 
 ### Lidar Reset (if node crashes on startup)
 
-The Scanse Sweep segfaults if left in data-streaming mode. Reset before launching:
+The Scanse Sweep segfaults if left in data-streaming mode. Reset before launching
+(replace the port with whichever raw `/dev/ttyUSBn` that unit is currently on):
 
 ```bash
 stty -F /dev/ttyUSB0 115200 && printf 'DX\n' > /dev/ttyUSB0 && sleep 1 && printf 'RR\n' > /dev/ttyUSB0 && sleep 3
@@ -133,26 +125,33 @@ stty -F /dev/ttyUSB0 115200 && printf 'DX\n' > /dev/ttyUSB0 && sleep 1 && printf
 
 ## Launch Files
 
+One unified launch file covers every combination — see
+`30_ros2_ws/src/guardian_bringup/README.md` for the full argument list.
+
 | Launch | Purpose | Hardware needed |
 |--------|---------|-----------------|
-| `guardian_teleop.launch.py` | Drive with keyboard only | ESP32s |
-| `guardian_mapping.launch.py` | Drive + LIDAR + SLAM mapping | ESP32s + Sweep |
-| `guardian_sim.launch.py` | Full Gazebo simulation | None |
-| `guardian_nav.launch.py` | Full Nav2 stack | ESP32s + Sweep |
+| `guardian.launch.py mode:=mapping` | Drive + LIDAR + SLAM mapping | Motors + Sweep (or none, in sim) |
+| `guardian.launch.py` (default) | Full Nav2 stack, autonomous navigation | Motors + Sweep (or none, in sim) |
+| `guardian.launch.py use_sim:=false` | Real hardware instead of Gazebo | Motors + Sweep |
+
+`ros2 run guardian_teleop keyboard_teleop_node` drives with keyboard only, standalone.
 
 ---
 
 ## Mapping (Real Robot)
 
-> Requires ESP32s on ttyACM0/1 and Scanse Sweep on ttyUSB0
+> Requires the Phidgets DCC1120 motor controllers (see `guardian_drive`) and the
+> Scanse Sweep LIDAR(s) on their udev-assigned `/dev/lidar_front`/`/dev/lidar_back`
+> ports (see `60_scripts/README.md` for one-time setup).
 
 ```bash
 source /opt/ros/jazzy/setup.bash && source install/setup.bash
-ros2 launch guardian_bringup guardian_mapping.launch.py
+ros2 launch guardian_bringup guardian.launch.py use_sim:=false mode:=mapping
 ```
 
-Drive around with the keyboard (opens in xterm). Map builds in RViz automatically.
-SLAM params: `minimum_travel_distance: 0.0` — map updates even when stationary.
+Drive around with the keyboard (teleop auto-enables in mapping mode). Map builds
+in RViz automatically. SLAM params: `minimum_travel_distance: 0.0` — map updates
+even when stationary.
 
 ---
 
@@ -162,26 +161,22 @@ SLAM params: `minimum_travel_distance: 0.0` — map updates even when stationary
 
 ```bash
 source /opt/ros/jazzy/setup.bash && source install/setup.bash
-ros2 launch guardian_bringup guardian_sim.launch.py
+ros2 launch guardian_bringup guardian.launch.py
 ```
 
 ### What launches
-- Gazebo Harmonic: 10×10m walled room with 3 box obstacles
-- Robot spawns at origin after ~3s
-- `/scan` from GPU lidar, `/odom` + `/tf` from DiffDrive plugin
-- SLAM Toolbox starts mapping at ~5s
-- All Nav2 nodes start at ~10s (`autostart: False` — wait for manual trigger)
-- RViz opens with SLAM map, costmaps, global/local path displays
-- Teleop keyboard opens in xterm window
-
-### Startup procedure
-1. Wait ~12 seconds for everything to load
-2. In the **RViz Nav2 panel**, click **"Startup"** button **once**
-3. Watch terminal for: `[lifecycle_manager_navigation]: Managed nodes bringup complete`
-4. Nav2 panel shows **Navigation: active** and **Localization: active**
+- Gazebo Harmonic world, robot spawns after ~3s
+- Front + back GPU lidars merged into `/scan_filtered`; `/odom` + `/tf` from the
+  MecanumDrive plugin (holonomic — DiffDrive can't strafe and isn't used)
+- SLAM Toolbox (mapping mode) or AMCL + a saved map (navigation mode, default)
+- Nav2 lifecycle auto-starts (`autostart: true` — no manual "Startup" click needed)
+- RViz opens by default (`rviz:=true`) with the map, costmaps, and global/local path displays
+- Teleop keyboard reads the keyboard directly via evdev (real press/release,
+  multi-key diagonal driving) — auto-enabled in mapping mode
 
 ### Build the map first
-Drive around with the keyboard to build the SLAM map before sending Nav2 goals.
+Drive around with the keyboard to build the SLAM map before sending Nav2 goals
+(`mode:=mapping`, then `30_ros2_ws/src/guardian_bringup/scripts/save_map.sh`).
 
 ### Send an autonomous navigation goal
 1. Click the **Nav2 Goal** tool (green arrow) in the RViz toolbar
@@ -198,7 +193,7 @@ ros2 topic echo /cmd_vel | head -5       # velocities while navigating
 ```
 
 ### Nav2 config notes
-- `autostart: False` — prevents double-bringup (first auto + user click = conflict)
+- `autostart: true` — Nav2 lifecycle starts automatically on launch
 - `bond_timeout: 0.0` — disables heartbeat bonds (sim clock vs wall clock mismatch)
 - `wait_for_service_timeout: 3000` — gives behavior_server 3s to come up before bt_navigator connects
 - Behavior plugin named `backup` (no underscore) — matches what default BT XML expects (`/backup` action server)

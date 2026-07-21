@@ -32,7 +32,7 @@ alias cbs='rosd && colcon build --symlink-install && source install/setup.bash'
 alias cbt='rosd && colcon test'
 
 alias guardiam_sim='source install/setup.bash && ros2 launch guardian_bringup guardian.launch.py use_sim:=true mode:=navigation'
-alias guardiam_map='ros2 launch guardian_bringup guardian.launch.py use_sim:=true mode:=mapping'
+alias guardiam_map='ros2 launch guardian_bringup guardian.launch.py use_sim:=false mode:=mapping'
 alias guardiam_real='ros2 launch guardian_bringup guardian.launch.py use_sim:=false mode:=navigation'
 alias killros='pkill -9 -f "ros2|gazebo|gzserver|gzclient|rviz2"'
 alias tf_tree='ros2 run tf2_tools view_frames'

@@ -24,8 +24,7 @@ Meta Quest 3 mixed-reality teleoperation, keyboard, and joystick fallback contro
 ## How to Launch or Run
 
 ```bash
-ros2 launch guardian_bringup guardian_teleop.launch.py
-# or standalone:
+# auto-enabled in guardian.launch.py's mapping mode, or standalone:
 ros2 run guardian_teleop keyboard_teleop_node
 ros2 run guardian_teleop joystick_fallback_node
 ```
