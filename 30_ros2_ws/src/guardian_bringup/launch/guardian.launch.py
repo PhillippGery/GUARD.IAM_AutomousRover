@@ -62,6 +62,8 @@ def launch_setup(context, *args, **kwargs):
     rviz_config  = os.path.join(
         bringup_dir, 'config',
         'guardian_mapping.rviz' if mode == 'mapping' else 'guardian_nav.rviz')
+    lidar_filter_params = os.path.join(
+        bringup_dir, 'config', 'lidar_filter_params.yaml')
 
     xacro_file = os.path.join(
         description_dir, 'urdf',
@@ -135,22 +137,21 @@ def launch_setup(context, *args, **kwargs):
                 ),
             ]),
             TimerAction(period=4.5, actions=[
+                # Each raw sensor topic gets frame-fixed (and, later,
+                # self-occlusion masked via mask_angle_ranges) on its own
+                # intermediate topic before merging — masking must happen
+                # per-sensor, in that sensor's own angle_min/max frame,
+                # not after re-binning into the merged scan.
                 Node(
                     package='guardian_localization',
                     executable='lidar_republisher_node',
-                    name='lidar_republisher_node',
+                    name='lidar_front_republisher_node',
                     parameters=[{
                         'input_topic':  '/scan',
-                        'output_topic': '/scan_filtered',
+                        'output_topic': '/scan_front_filtered',
                         'frame_id':     'laser',
-                    }, use_sim_time],
+                    }, lidar_filter_params, use_sim_time],
                 ),
-                # Back LIDAR — republished onto its own topic, not yet
-                # merged with /scan_filtered into a single Nav2-costmap
-                # input. Fusing two scans (TF-aware merge, or a combined
-                # pointcloud) is a separate task; for now Nav2 keeps using
-                # the front scan only, and /scan_back_filtered is
-                # available for RViz/inspection.
                 Node(
                     package='guardian_localization',
                     executable='lidar_republisher_node',
@@ -159,6 +160,29 @@ def launch_setup(context, *args, **kwargs):
                         'input_topic':  '/scan_back',
                         'output_topic': '/scan_back_filtered',
                         'frame_id':     'laser_back',
+                    }, lidar_filter_params, use_sim_time],
+                ),
+            ]),
+            TimerAction(period=5.0, actions=[
+                # Combines both filtered scans into one virtual 360° scan
+                # on /scan_filtered — the topic Nav2/SLAM actually consume.
+                # front_x/y/yaw and back_x/y/yaw must match the `lidar`
+                # xacro macro instantiations in guardian_sim.urdf.xacro
+                # (lidar_front_*/lidar_back_* come from dimensions.xacro,
+                # auto-generated off the CAD — update these to match if
+                # that ever changes).
+                Node(
+                    package='guardian_localization',
+                    executable='lidar_merger_node',
+                    name='lidar_merger_node',
+                    parameters=[{
+                        'front_input_topic': '/scan_front_filtered',
+                        'back_input_topic':  '/scan_back_filtered',
+                        'output_topic':      '/scan_filtered',
+                        'frame_id':          'base_link',
+                        'front_x': 0.319650, 'front_y': 0.0, 'front_yaw': 0.0,
+                        'back_x': -0.319650, 'back_y': 0.0,
+                        'back_yaw': 3.14159265,
                     }, use_sim_time],
                 ),
             ]),
