@@ -87,9 +87,12 @@ class PhidgetBridgeNode(Node):
         self.declare_parameter('publish_odom', True)
         self.declare_parameter('publish_tf', True)
         self.declare_parameter('odom_rate_hz', 50.0)
-        self.declare_parameter('wheel_radius', 0.0748)      # VEX Pro 6"
-        self.declare_parameter('wheel_base_length', 0.25)
-        self.declare_parameter('wheel_base_width', 0.20)
+        # Defaults match robot_params.yaml's /** wildcard block (which
+        # normally overrides these) — CAD-measured values from
+        # guardian_description/urdf/dimensions.xacro.
+        self.declare_parameter('wheel_radius', 0.0775)      # VEX Pro 6"
+        self.declare_parameter('wheel_base_length', 0.313588)
+        self.declare_parameter('wheel_base_width', 0.390755)
         self.declare_parameter('odom_frame', 'odom')
         self.declare_parameter('base_frame', 'base_link')
 
