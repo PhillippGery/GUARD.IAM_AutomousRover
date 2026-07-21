@@ -61,7 +61,6 @@ sudo apt install -y \
   "ros-$ROS_DISTRO-nav2-dwb-controller" \
   "ros-$ROS_DISTRO-slam-toolbox" \
   "ros-$ROS_DISTRO-robot-localization" \
-  "ros-$ROS_DISTRO-realsense2-camera" \
   "ros-$ROS_DISTRO-teleop-twist-joy" \
   "ros-$ROS_DISTRO-teleop-twist-keyboard" \
   "ros-$ROS_DISTRO-joy" \
@@ -95,13 +94,12 @@ else
   echo "  l3xz_sweep_scanner already cloned, skipping"
 fi
 
-# lerobot, phidgets_drivers, and realsense-ros are git submodules (see
-# .gitmodules) — pinned to a known commit and checked out along with the
-# rest of the repo, not cloned ad hoc here.
+# lerobot and phidgets_drivers are git submodules (see .gitmodules) — pinned
+# to a known commit and checked out along with the rest of the repo, not
+# cloned ad hoc here.
 git -C "$SCRIPT_DIR/.." submodule update --init --recursive \
   30_ros2_ws/src/lerobot \
-  30_ros2_ws/src/phidgets_drivers \
-  30_ros2_ws/src/realsense-ros
+  30_ros2_ws/src/phidgets_drivers
 
 # ─── LeRobot Python dependencies ─────────────────────────────────────────────
 echo "[5/7] Installing LeRobot Python dependencies..."

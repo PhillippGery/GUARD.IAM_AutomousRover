@@ -13,7 +13,8 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import (DeclareLaunchArgument, ExecuteProcess,
                              IncludeLaunchDescription, OpaqueFunction,
-                             TimerAction)
+                             RegisterEventHandler, TimerAction)
+from launch.event_handlers import OnProcessIO
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node, SetParameter
@@ -59,9 +60,7 @@ def launch_setup(context, *args, **kwargs):
     spawn_z   = LaunchConfiguration('spawn_z').perform(context)
 
     use_sim_time = {'use_sim_time': use_sim}
-    rviz_config  = os.path.join(
-        bringup_dir, 'config',
-        'guardian_mapping.rviz' if mode == 'mapping' else 'guardian_nav.rviz')
+    rviz_config  = os.path.join(bringup_dir, 'config', 'guardian.rviz')
     lidar_filter_params = os.path.join(
         bringup_dir, 'config', 'lidar_filter_params.yaml')
 
@@ -196,6 +195,52 @@ def launch_setup(context, *args, **kwargs):
 
     # ── use_sim:=false — real sensors + drive ───────────────────────────────
     else:
+        # Defined ahead of the actions list: sweep_scanner_front_node is
+        # both launched below and used as the target of the
+        # RegisterEventHandler that starts sweep_scanner_back once it's
+        # actually ready (see the comment further down).
+        sweep_scanner_front_node = Node(
+            package='l3xz_sweep_scanner',
+            executable='l3xz_sweep_scanner_node',
+            name='sweep_scanner_front',
+            output='screen',
+            respawn=True,
+            respawn_delay=2.0,
+            parameters=[{
+                'serial_port': '/dev/lidar_front',
+                'topic': 'scan',
+                'frame_id': 'laser',
+                'rotation_speed': 5,
+            }],
+        )
+        sweep_scanner_back_node = Node(
+            package='l3xz_sweep_scanner',
+            executable='l3xz_sweep_scanner_node',
+            name='sweep_scanner_back',
+            output='screen',
+            respawn=True,
+            respawn_delay=2.0,
+            parameters=[{
+                'serial_port': '/dev/lidar_back',
+                'topic': 'scan_back',
+                'frame_id': 'laser_back',
+                'rotation_speed': 5,
+            }],
+        )
+        _front_lidar_ready = {'done': False}
+
+        def _start_back_lidar_once_front_ready(event):
+            # Fires on every stdout line from sweep_scanner_front,
+            # including after a respawn=True restart — only actually
+            # launch the back unit the first time, never again.
+            if _front_lidar_ready['done']:
+                return None
+            text = event.text.decode(errors='replace')
+            if 'starting data acquisition' in text:
+                _front_lidar_ready['done'] = True
+                return [sweep_scanner_back_node]
+            return None
+
         actions += [
             Node(
                 package='joint_state_publisher',
@@ -229,34 +274,31 @@ def launch_setup(context, *args, **kwargs):
             # adapter's own serial number — see
             # 60_scripts/99-guardian-lidar.rules and its README section for
             # how to identify each unit and set this up on the real robot.
-            Node(
-                package='l3xz_sweep_scanner',
-                executable='l3xz_sweep_scanner_node',
-                name='sweep_scanner_front',
-                parameters=[{
-                    'serial_port': '/dev/lidar_front',
-                    'topic': 'sweep/front_scan',
-                    'frame_id': 'laser',
-                    'rotation_speed': 5,
-                }],
-            ),
-            Node(
-                package='l3xz_sweep_scanner',
-                executable='l3xz_sweep_scanner_node',
-                name='sweep_scanner_back',
-                parameters=[{
-                    'serial_port': '/dev/lidar_back',
-                    'topic': 'sweep/back_scan',
-                    'frame_id': 'laser_back',
-                    'rotation_speed': 5,
-                }],
-            ),
+            #
+            # Topic names ('scan'/'scan_back') deliberately match the sim
+            # branch's raw gz-bridge topic names (/scan, /scan_back) —
+            # one consistent naming convention for both, feeding the same
+            # lidar_republisher_node -> lidar_merger_node pipeline.
+            #
+            # sweep_scanner_back's startup is chained off sweep_scanner_front
+            # actually being ready (RegisterEventHandler below), not a fixed
+            # delay: starting both l3xz_sweep_scanner_node processes at the
+            # same instant segfaults one or both of them — a USB-serial
+            # open/configure race in the underlying libsweep driver. How
+            # long _front takes to reach "starting data acquisition" varies
+            # (seen 5-13s on the bench), so a fixed timer either wastes time
+            # or isn't long enough; waiting for the actual ready line is
+            # both faster on average and more reliable. respawn=True on
+            # both is a safety net for this driver's occasional crash
+            # regardless of startup timing — ros2 launch restarts it rather
+            # than leaving the LIDAR pipeline dead until a manual relaunch.
+            sweep_scanner_front_node,
             Node(
                 package='guardian_localization',
                 executable='lidar_republisher_node',
                 name='lidar_front_republisher_node',
                 parameters=[{
-                    'input_topic':  '/sweep/front_scan',
+                    'input_topic':  '/scan',
                     'output_topic': '/scan_front_filtered',
                     'frame_id':     'laser',
                 }, lidar_filter_params],
@@ -266,7 +308,7 @@ def launch_setup(context, *args, **kwargs):
                 executable='lidar_republisher_node',
                 name='lidar_back_republisher_node',
                 parameters=[{
-                    'input_topic':  '/sweep/back_scan',
+                    'input_topic':  '/scan_back',
                     'output_topic': '/scan_back_filtered',
                     'frame_id':     'laser_back',
                 }, lidar_filter_params],
@@ -287,18 +329,20 @@ def launch_setup(context, *args, **kwargs):
             ),
 
             # ── Intel RealSense D415 ─────────────────────────────────────
-            Node(
-                package='realsense2_camera',
-                executable='realsense2_camera_node',
-                name='realsense2_camera',
-                parameters=[{
-                    'depth_module.profile': '640x480x30',
-                    'rgb_camera.profile':   '640x480x30',
-                    'align_depth.enable':   True,
-                    'pointcloud.enable':    False,
-                }],
-            ),
+            # Removed: the pinned realsense-ros release (4.54.1, the
+            # newest tag at the time) hard-rejects ROS_DISTRO=jazzy in its
+            # CMakeLists.txt (Unsupported ROS Distribution error), which
+            # broke every full-workspace colcon build. Re-add once a
+            # Jazzy-compatible realsense-ros release exists upstream.
         ]
+        # See the comment above sweep_scanner_front_node — starts
+        # sweep_scanner_back the moment _front actually reports ready,
+        # rather than guessing at a fixed delay.
+        actions.append(RegisterEventHandler(OnProcessIO(
+            target_action=sweep_scanner_front_node,
+            on_stdout=_start_back_lidar_once_front_ready,
+            on_stderr=_start_back_lidar_once_front_ready,
+        )))
         nav2_delay = 0.0
 
     # ── rviz:=true only — RViz2 (pure visualization, no effect on nav) ──────

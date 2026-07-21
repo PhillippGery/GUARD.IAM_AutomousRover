@@ -3,6 +3,9 @@ Panels:
     Name: Displays
   - Class: rviz_common/Views
     Name: Views
+  - Class: nav2_rviz_plugins/Navigation 2
+    Name: Navigation 2
+
 Visualization Manager:
   Displays:
     - Class: rviz_default_plugins/Grid
@@ -33,12 +36,51 @@ Visualization Manager:
       Color: 255; 50; 50
 
     - Class: rviz_default_plugins/Map
-      Name: Map
+      Name: SLAM Map
       Topic:
         Value: /map
       Enabled: true
       Alpha: 0.7
       Color Scheme: map
+
+    - Class: rviz_default_plugins/Map
+      Name: Global Costmap
+      Topic:
+        Value: /global_costmap/costmap
+      Enabled: true
+      Alpha: 0.4
+      Color Scheme: costmap
+
+    - Class: rviz_default_plugins/Map
+      Name: Local Costmap
+      Topic:
+        Value: /local_costmap/costmap
+      Enabled: true
+      Alpha: 0.5
+      Color Scheme: costmap
+
+    - Class: rviz_default_plugins/Path
+      Name: Global Path
+      Topic:
+        Value: /plan
+      Enabled: true
+      Color: 0; 255; 0
+      Line Width: 0.03
+
+    - Class: rviz_default_plugins/Path
+      Name: Local Path
+      Topic:
+        Value: /local_plan
+      Enabled: true
+      Color: 0; 0; 255
+      Line Width: 0.03
+
+    - Class: rviz_default_plugins/Polygon
+      Name: Robot Footprint
+      Topic:
+        Value: /local_costmap/published_footprint
+      Enabled: true
+      Color: 25; 255; 0
 
     - Class: rviz_default_plugins/Odometry
       Name: Odometry
@@ -52,6 +94,13 @@ Visualization Manager:
   Global Options:
     Fixed Frame: map
     Frame Rate: 30
+
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: nav2_rviz_plugins/GoalTool
+
   Views:
     Current:
       Class: rviz_default_plugins/TopDownOrtho

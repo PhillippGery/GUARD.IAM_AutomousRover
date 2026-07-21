@@ -1,6 +1,7 @@
 slam_toolbox:
   ros__parameters:
-    use_sim_time: true
+    # use_sim_time is not set here — guardian.launch.py always passes it
+    # explicitly as a launch-time override, which wins over any value here.
     solver_plugin: solver_plugins::CeresSolver
     ceres_linear_solver: SPARSE_NORMAL_CHOLESKY
     ceres_preconditioner: SCHUR_JACOBI
@@ -20,6 +21,3 @@ slam_toolbox:
     max_laser_range: 20.0
     minimum_travel_distance: 0.0
     minimum_travel_heading: 0.0
-    map_file_name: guardian_map
-    map_start_pose: [0.0, 0.0, 0.0]
-    map_start_at_dock: true

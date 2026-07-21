@@ -56,11 +56,12 @@ The aliases in `60_scripts/guardiam_env.sh` (`guardiam_sim`, `guardiam_map`,
 | `robot_params.yaml` | Robot geometry, serial port, hardware params (single source of truth via a `/**` wildcard block) |
 | `lidar_filter_params.yaml` | Per-sensor LIDAR self-occlusion masking (front/back) |
 | `navigate_to_pose.xml` | Nav2 behavior tree for `navigate_to_pose` |
-| `guardian_nav.rviz`, `guardian_mapping.rviz` | RViz display configs, selected by `mode` |
+| `guardian.rviz` | RViz display config — one file for both mapping and navigation mode, since Nav2 core runs in both |
 
 ## Known Issues / Dependencies
 
 - `bt_navigator` needs `wait_for_service_timeout: 3000` in `nav2_params*.yaml` or it fails to find `behavior_server` on slower hardware.
 - `behavior_server` must be listed before `bt_navigator` in the `node_names` array of the lifecycle manager config.
 - `autostart: true` in the Nav2 params — the Nav2 lifecycle starts automatically on launch, no manual "Startup" click needed.
-- Depends on `guardian_description`, `guardian_drive`, `guardian_localization`, `guardian_manipulation`, `guardian_navigation`, `guardian_teleop`, plus `nav2_bringup`, `robot_localization`, `slam_toolbox`, `realsense2_camera`, `l3xz_sweep_scanner`, `rviz2`, `xacro`.
+- Depends on `guardian_description`, `guardian_drive`, `guardian_localization`, `guardian_manipulation`, `guardian_navigation`, `guardian_teleop`, plus `nav2_bringup`, `robot_localization`, `slam_toolbox`, `l3xz_sweep_scanner`, `rviz2`, `xacro`.
+- RealSense D415 camera node removed (was `realsense2_camera` in the real-hardware launch branch) — the pinned realsense-ros release doesn't support ROS_DISTRO=jazzy and broke full-workspace builds. Re-add once a Jazzy-compatible release exists upstream.

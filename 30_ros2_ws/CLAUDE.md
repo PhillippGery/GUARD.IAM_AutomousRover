@@ -21,7 +21,7 @@ Purdue University ICON + MARS Lab. Supervisor: Prof. Yu She.
 - `guardian_manipulation` — dual SO-101 arm control + Quest arm-teleop bridge (LeRobot)
 - `guardian_navigation` — high-level autonomous mission behaviors (Nav2 simple commander)
 - `guardian_teleop` — keyboard/joystick/Quest base teleoperation
-- `l3xz_sweep_scanner`, `realsense-ros` — third-party sensor driver packages (vendored, do not restructure)
+- `l3xz_sweep_scanner` — third-party sensor driver package (vendored, do not restructure)
 
 ## Key ROS2 Topics
 - `/wheel_rpm` — `std_msgs/Float32MultiArray` [FL,FR,BL,BR] RPM — `guardian_drive` kinematics → serial bridge
