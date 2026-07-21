@@ -123,6 +123,7 @@ def launch_setup(context, *args, **kwargs):
                         # this stays '/scan' and gets relayed to
                         # '/scan_filtered' below via lidar_republisher_node.
                         '/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
+                        '/scan_back@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
                         '/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist',
                         '/odom@nav_msgs/msg/Odometry[gz.msgs.Odometry',
                         '/tf@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V',
@@ -142,6 +143,22 @@ def launch_setup(context, *args, **kwargs):
                         'input_topic':  '/scan',
                         'output_topic': '/scan_filtered',
                         'frame_id':     'laser',
+                    }, use_sim_time],
+                ),
+                # Back LIDAR — republished onto its own topic, not yet
+                # merged with /scan_filtered into a single Nav2-costmap
+                # input. Fusing two scans (TF-aware merge, or a combined
+                # pointcloud) is a separate task; for now Nav2 keeps using
+                # the front scan only, and /scan_back_filtered is
+                # available for RViz/inspection.
+                Node(
+                    package='guardian_localization',
+                    executable='lidar_republisher_node',
+                    name='lidar_back_republisher_node',
+                    parameters=[{
+                        'input_topic':  '/scan_back',
+                        'output_topic': '/scan_back_filtered',
+                        'frame_id':     'laser_back',
                     }, use_sim_time],
                 ),
             ]),

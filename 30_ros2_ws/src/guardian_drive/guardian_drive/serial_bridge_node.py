@@ -23,9 +23,11 @@ class SerialBridgeNode(Node):
         self.declare_parameter('serial_port_right', '/dev/ttyACM1')
         self.declare_parameter('baud_rate',          115200)
         self.declare_parameter('serial_timeout',     1.0)
-        self.declare_parameter('wheel_radius',       0.0748)
-        self.declare_parameter('wheel_base_length',  0.25)
-        self.declare_parameter('wheel_base_width',   0.20)
+        # Defaults match robot_params.yaml (which normally overrides these) —
+        # CAD-measured values from guardian_description/urdf/dimensions.xacro.
+        self.declare_parameter('wheel_radius',       0.0775)
+        self.declare_parameter('wheel_base_length',  0.313588)
+        self.declare_parameter('wheel_base_width',   0.390755)
         self.declare_parameter('cpr',                175.0)
         self.declare_parameter('max_ticks_per_sec',  3000.0)
         self.declare_parameter('sim_mode',           False)

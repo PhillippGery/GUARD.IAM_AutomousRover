@@ -14,10 +14,12 @@ class MecanumKinematicsNode(Node):
     def __init__(self):
         super().__init__('mecanum_kinematics_node')
 
-        self.declare_parameter('wheel_radius', 0.0748)      # 6" VEXpro mecanum wheels
-        self.declare_parameter('wheel_base_length', 0.25)
-        self.declare_parameter('wheel_base_width', 0.20)
-        self.declare_parameter('max_rpm', 251.0)
+        # Defaults match robot_params.yaml (which normally overrides these) —
+        # CAD-measured values from guardian_description/urdf/dimensions.xacro.
+        self.declare_parameter('wheel_radius', 0.0775)      # 6" VEXpro mecanum wheels
+        self.declare_parameter('wheel_base_length', 0.313588)
+        self.declare_parameter('wheel_base_width', 0.390755)
+        self.declare_parameter('max_rpm', 170.0)  # real motor rated max continuous speed
 
         self.sub = self.create_subscription(Twist, '/cmd_vel', self.cmd_vel_callback, 10)
         self.pub = self.create_publisher(Float32MultiArray, '/wheel_rpm', 10)

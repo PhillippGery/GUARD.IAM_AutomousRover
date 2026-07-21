@@ -21,6 +21,7 @@
 # See guardian_teleop/README.md for the one-time setup and why this
 # approach was chosen over reading the terminal.
 
+import math
 import threading
 
 import evdev
@@ -28,6 +29,17 @@ from evdev import ecodes
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
+
+# Real motor spec: 170 RPM rated max continuous wheel speed. wheel_radius
+# matches the CAD-measured value in guardian_description/urdf/dimensions.xacro
+# and guardian_bringup/config/robot_params.yaml — keep all three in sync.
+# 100% speed (speed_scale=1.0) is defined to be exactly this: any straight
+# drive/strafe command at full speed_scale asks for precisely 170 RPM at
+# each wheel, matching the hardware's real limit instead of an arbitrary
+# small default that left most of the available speed unused.
+WHEEL_RADIUS_M = 0.0775
+MAX_WHEEL_RPM = 170.0
+MAX_LINEAR_MPS = MAX_WHEEL_RPM * (2.0 * math.pi / 60.0) * WHEEL_RADIUS_M
 
 # evdev keycode -> (vx, vy, oz) contribution while held
 KEYS = {
@@ -78,7 +90,7 @@ def find_keyboard_device():
 class KeyboardTeleopNode(Node):
     def __init__(self):
         super().__init__('keyboard_teleop_node')
-        self.declare_parameter('linear_speed', 0.05)
+        self.declare_parameter('linear_speed', MAX_LINEAR_MPS)
         self.declare_parameter('angular_speed', 1.0)
         self.declare_parameter('device_path', '')  # '' = auto-detect
         # Exclusively grabs the keyboard so keystrokes don't also leak to

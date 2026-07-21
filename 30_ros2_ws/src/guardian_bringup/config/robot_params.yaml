@@ -4,16 +4,21 @@ serial_bridge_node:
     serial_port_right: /dev/ttyACM1
     baud_rate: 115200
     serial_timeout: 1.0
-    wheel_radius: 0.0748
-    wheel_base_length: 0.25
-    wheel_base_width: 0.20
+    # wheel_radius/wheel_base_length/wheel_base_width feed this node's own
+    # encoder-tick -> odometry math (_compute_odom), separate from
+    # mecanum_kinematics_node's cmd_vel -> wheel_rpm math below — both must
+    # match the CAD-measured values (guardian_description/urdf/dimensions.xacro)
+    # or dead-reckoning position will be wrong even though driving looks fine.
+    wheel_radius: 0.0775
+    wheel_base_length: 0.313588
+    wheel_base_width: 0.390755
     cpr: 175.0
     max_ticks_per_sec: 3000.0  # maps 251 RPM -> 3000 ticks/sec, tune down if too fast
     sim_mode: false
 
 mecanum_kinematics_node:
   ros__parameters:
-    wheel_radius: 0.0748
-    wheel_base_length: 0.311588
-    wheel_base_width: 0.39075
-    max_rpm: 150
+    wheel_radius: 0.0775
+    wheel_base_length: 0.313588
+    wheel_base_width: 0.390755
+    max_rpm: 170.0  # real motor rated max continuous speed

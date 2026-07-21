@@ -18,11 +18,15 @@ dist/
 *.elf
 *.bin
 
-# CAD — use Git LFS for large files
+# CAD — use Git LFS for large files (case-insensitive: .STEP/.StEp all match)
 *.stl
-*.step
-*.stp
+*.[Ss][Tt][Ee][Pp]
+*.[Ss][Tt][Pp]
 *.f3d
+# ...except generated sim meshes checked out of CAD by
+# 20_hardware/cad/step_to_description.py — these must ship with the repo
+# so a fresh clone/build actually has geometry to render.
+!30_ros2_ws/src/guardian_description/meshes/**
 
 # OS
 .DS_Store
