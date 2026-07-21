@@ -28,7 +28,9 @@ class SerialBridgeNode(Node):
         self.declare_parameter('wheel_radius',       0.0775)
         self.declare_parameter('wheel_base_length',  0.313588)
         self.declare_parameter('wheel_base_width',   0.390755)
-        self.declare_parameter('cpr',                175.0)
+        # Confirmed on the real robot: 4-pole hall sensors (12 ticks per
+        # motor-shaft rev) x 22.667:1 gearbox = 272 ticks/wheel-rev.
+        self.declare_parameter('cpr',                272.0)
         self.declare_parameter('max_ticks_per_sec',  3000.0)
         self.declare_parameter('sim_mode',           False)
         self.declare_parameter('publish_odom',       True)

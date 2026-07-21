@@ -12,8 +12,8 @@ serial_bridge_node:
     wheel_radius: 0.0775
     wheel_base_length: 0.313588
     wheel_base_width: 0.390755
-    cpr: 175.0
-    max_ticks_per_sec: 3000.0  # maps 251 RPM -> 3000 ticks/sec, tune down if too fast
+    cpr: 272.0  # confirmed on the real robot: 4-pole hall sensors (12 ticks/motor-rev) x 22.667:1 gearbox
+    max_ticks_per_sec: 3000.0  # declared but unused in serial_bridge_node.py — not wired to anything
     sim_mode: false
 
 mecanum_kinematics_node:
