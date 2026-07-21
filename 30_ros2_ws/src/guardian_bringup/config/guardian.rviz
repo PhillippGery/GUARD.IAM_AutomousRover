@@ -24,7 +24,7 @@ Visualization Manager:
     - Class: rviz_default_plugins/LaserScan
       Name: LaserScan
       Topic:
-        Value: /scan
+        Value: /scan_filtered
       Color: 255; 0; 0
       Size (m): 0.05
       Enabled: true

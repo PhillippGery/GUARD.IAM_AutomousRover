@@ -215,24 +215,69 @@ def launch_setup(context, *args, **kwargs):
             # DCC1120 driver integration lands, it replaces/augments
             # serial_bridge_node above for real-hardware motor control.
 
-            # ── Scanse Sweep LIDAR → /scan_filtered ─────────────────────────
+            # ── Scanse Sweep LIDARs (front + back) → merged /scan_filtered ──
+            # serial_port uses /dev/lidar_front and /dev/lidar_back, NOT raw
+            # /dev/ttyUSB0/1 — those numbers are assigned by USB enumeration
+            # order and are not guaranteed to stay attached to the same
+            # physical unit across a reboot or replug. /dev/lidar_front and
+            # /dev/lidar_back are stable udev symlinks keyed on each USB
+            # adapter's own serial number — see
+            # 60_scripts/99-guardian-lidar.rules and its README section for
+            # how to identify each unit and set this up on the real robot.
             Node(
                 package='l3xz_sweep_scanner',
                 executable='l3xz_sweep_scanner_node',
-                name='sweep_scanner',
+                name='sweep_scanner_front',
                 parameters=[{
-                    'serial_port': '/dev/ttyUSB0',
+                    'serial_port': '/dev/lidar_front',
+                    'topic': 'sweep/front_scan',
+                    'frame_id': 'laser',
+                    'rotation_speed': 5,
+                }],
+            ),
+            Node(
+                package='l3xz_sweep_scanner',
+                executable='l3xz_sweep_scanner_node',
+                name='sweep_scanner_back',
+                parameters=[{
+                    'serial_port': '/dev/lidar_back',
+                    'topic': 'sweep/back_scan',
+                    'frame_id': 'laser_back',
                     'rotation_speed': 5,
                 }],
             ),
             Node(
                 package='guardian_localization',
                 executable='lidar_republisher_node',
-                name='lidar_republisher_node',
+                name='lidar_front_republisher_node',
                 parameters=[{
-                    'input_topic':  '/sweep/scan',
-                    'output_topic': '/scan_filtered',
+                    'input_topic':  '/sweep/front_scan',
+                    'output_topic': '/scan_front_filtered',
                     'frame_id':     'laser',
+                }, lidar_filter_params],
+            ),
+            Node(
+                package='guardian_localization',
+                executable='lidar_republisher_node',
+                name='lidar_back_republisher_node',
+                parameters=[{
+                    'input_topic':  '/sweep/back_scan',
+                    'output_topic': '/scan_back_filtered',
+                    'frame_id':     'laser_back',
+                }, lidar_filter_params],
+            ),
+            Node(
+                package='guardian_localization',
+                executable='lidar_merger_node',
+                name='lidar_merger_node',
+                parameters=[{
+                    'front_input_topic': '/scan_front_filtered',
+                    'back_input_topic':  '/scan_back_filtered',
+                    'output_topic':      '/scan_filtered',
+                    'frame_id':          'base_link',
+                    'front_x': 0.319650, 'front_y': 0.0, 'front_yaw': 0.0,
+                    'back_x': -0.319650, 'back_y': 0.0,
+                    'back_yaw': 3.14159265,
                 }],
             ),
 
@@ -410,10 +455,11 @@ def generate_launch_description():
             'map', default_value=default_map,
             description='Map yaml to load in navigation mode (see save_map.sh)'),
         DeclareLaunchArgument(
-            'rviz', default_value='false',
+            'rviz', default_value='true',
             description='Launch RViz2 (visualization only, no effect on '
-                         'navigation) — off by default for headless/'
-                         'autonomous startup'),
+                         'navigation) — on by default so mapping/nav goals '
+                         'can be set interactively; pass rviz:=false for '
+                         'headless/autonomous startup'),
         DeclareLaunchArgument(
             'known_pose', default_value='',
             description="'true'/'false' — whether the robot's start pose "

@@ -1,0 +1,26 @@
+# GUARDIAN — stable device names for the front/back Scanse Sweep LIDARs.
+#
+# Raw /dev/ttyUSB0 / /dev/ttyUSB1 numbers are assigned by USB enumeration
+# order and are NOT guaranteed to stay attached to the same physical LIDAR
+# across a reboot or replug — swap which one powers up first and "front"
+# and "back" silently swap too. This pins each unit's own USB serial
+# number to a fixed symlink instead.
+#
+# Setup:
+#   1. Plug in ONE LIDAR at a time and run:
+#        60_scripts/identify_lidar_port.sh
+#      Read off its ID_SERIAL_SHORT (the ATTRS{serial} value) and label
+#      that physical unit (e.g. tape marked "F" or "B") — do this for
+#      both units.
+#   2. Replace REPLACE_WITH_FRONT_SERIAL / REPLACE_WITH_BACK_SERIAL below
+#      with the two serial numbers found.
+#   3. Install and activate:
+#        sudo cp 60_scripts/99-guardian-lidar.rules /etc/udev/rules.d/
+#        sudo udevadm control --reload-rules
+#        sudo udevadm trigger
+#   4. Plug both LIDARs in and confirm:
+#        ls -la /dev/lidar_front /dev/lidar_back
+#      Each should be a symlink to whichever /dev/ttyUSBn it landed on.
+
+SUBSYSTEM=="tty", ATTRS{serial}=="DO008MI4", SYMLINK+="lidar_back"
+SUBSYSTEM=="tty", ATTRS{serial}=="DM00KCAM", SYMLINK+="lidar_front"
