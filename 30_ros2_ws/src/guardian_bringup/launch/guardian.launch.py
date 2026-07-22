@@ -471,19 +471,24 @@ def launch_setup(context, *args, **kwargs):
 
     # ── teleop:=true (or mode:=mapping default) — GUARDIAN's own keyboard
     # teleop node, the same one used on real hardware, so a sim test here
-    # exercises the exact code path that runs on the rover. Needs an actual
-    # TTY (raw termios), hence the terminal wrapper — not runnable headless.
-    # Which terminal emulator exists varies by machine (xterm isn't always
-    # installed, e.g. on this GNOME desktop) — teleop_terminal is
-    # overridable rather than hardcoded to one.
+    # exercises the exact code path that runs on the rover. It reads
+    # keyboard input directly via evdev (/dev/input/eventN), not terminal
+    # raw-mode, so it does NOT need its own TTY — no terminal wrapper here.
+    # (An earlier revision wrapped it in `gnome-terminal --wait --`, which
+    # looked attached but wasn't: gnome-terminal hands the actual process
+    # off to the separate, persistent gnome-terminal-server daemon over
+    # D-Bus, so ros2 launch's shutdown signal only reached the thin wrapper
+    # it spawned — the real node orphaned and kept running, still holding
+    # /dev/input and still publishing to /cmd_vel, stacking up across every
+    # session that didn't get killed at the exact same instant as the
+    # wrapper. Plain output='screen', same as every other node, avoids all
+    # of that and also works headless over SSH.)
     if teleop:
-        teleop_terminal = LaunchConfiguration('teleop_terminal').perform(context)
         actions.append(Node(
             package='guardian_teleop',
             executable='keyboard_teleop_node',
             name='keyboard_teleop_node',
             output='screen',
-            prefix=teleop_terminal,
         ))
 
     return actions
@@ -548,14 +553,5 @@ def generate_launch_description():
             description="'true'/'false' — launch GUARDIAN's own keyboard "
                          'teleop node. Empty (default) auto-selects: on '
                          'for mode:=mapping, off for mode:=navigation.'),
-        DeclareLaunchArgument(
-            'teleop_terminal', default_value='gnome-terminal --wait --',
-            description='Terminal emulator command used to give keyboard_'
-                         'teleop_node a real TTY (it needs raw termios). '
-                         "Default assumes GNOME; override to e.g. 'xterm -e' "
-                         'if that is what is installed instead. Must stay '
-                         'attached to its child (xterm and gnome-terminal '
-                         '--wait both do; plain gnome-terminal without '
-                         '--wait detaches and confuses launch).'),
         OpaqueFunction(function=launch_setup),
     ])

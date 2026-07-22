@@ -35,11 +35,18 @@ ros2 launch guardian_bringup guardian.launch.py use_sim:=false
 
 # Headless (no RViz) — e.g. autonomous/unattended startup
 ros2 launch guardian_bringup guardian.launch.py rviz:=false
+
+# Navigation mode, but with manual teleop override enabled too
+ros2 launch guardian_bringup guardian.launch.py use_sim:=false teleop:=true
+
+# Mapping mode, but without teleop (pure autonomous SLAM exploration)
+ros2 launch guardian_bringup guardian.launch.py use_sim:=false mode:=mapping teleop:=false
 ```
 
 Key arguments: `use_sim` (`true`/`false`, default `true`), `mode` (`mapping`/`navigation`,
-default `navigation`), `rviz` (default `true`), `teleop` (auto: on for mapping,
-off for navigation), `map` (map yaml to load in navigation mode), `known_pose`
+default `navigation`), `rviz` (default `true`), `teleop` (`true`/`false` explicitly
+overrides in either mode; left empty it auto-selects: on for mapping, off for
+navigation), `map` (map yaml to load in navigation mode), `known_pose`
 (auto: known spawn point in sim, AMCL global localization on real hardware),
 `world`/`spawn_x`/`spawn_y`/`spawn_z` (sim only). See `guardian.launch.py`'s
 `DeclareLaunchArgument` calls for the full list and descriptions.
