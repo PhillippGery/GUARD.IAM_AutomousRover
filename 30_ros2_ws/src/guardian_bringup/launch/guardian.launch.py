@@ -257,13 +257,15 @@ def launch_setup(context, *args, **kwargs):
             ),
             Node(
                 package='guardian_drive',
-                executable='serial_bridge_node',
-                name='serial_bridge_node',
-                parameters=[robot_params, {'sim_mode': False}],
+                executable='phidget_bridge_node',
+                name='phidget_bridge_node',
+                parameters=[robot_params],
             ),
-            # TODO: Phidgets VINT Hub motor driver node (Vedant) — once the
-            # DCC1120 driver integration lands, it replaces/augments
-            # serial_bridge_node above for real-hardware motor control.
+            # serial_bridge_node (ESP32-over-USB-serial) is the pre-Phidgets
+            # hardware generation and is no longer wired up here — the robot
+            # doesn't have ESP32 boards anymore. phidget_bridge_node drives
+            # the Phidget DCC1120 controllers directly over VINT/USB and is
+            # a drop-in replacement: same /wheel_rpm in, same /odom out.
 
             # ── Scanse Sweep LIDARs (front + back) → merged /scan_filtered ──
             # serial_port uses /dev/lidar_front and /dev/lidar_back, NOT raw
