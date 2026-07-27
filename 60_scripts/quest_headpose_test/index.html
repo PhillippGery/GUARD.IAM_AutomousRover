@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GUARD.IAM — Head Pose + Video</title>
+<style>
+  body { font-family: system-ui, sans-serif; background:#111; color:#eee;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    height:100vh; margin:0; gap:1rem; text-align:center; padding:1rem; }
+  button { font-size:1.4rem; padding:1rem 2rem; border:none; border-radius:10px;
+    background:#2d7; color:#012; font-weight:700; cursor:pointer; }
+  button:disabled { background:#555; color:#999; }
+  #status { font-size:1rem; color:#9cf; min-height:1.4em; }
+  #log { font-family:monospace; font-size:0.8rem; color:#fa6; white-space:pre-wrap; max-width:90vw; }
+  h1 { font-size:1.3rem; margin:0; }
+  canvas { display:none; }
+</style>
+</head>
+<body>
+  <h1>GUARD.IAM head-pose + video</h1>
+  <button id="enter">Enter VR</button>
+  <div id="status">Not connected.</div>
+  <div id="log"></div>
+  <canvas id="glcanvas"></canvas>
+
+<script>
+const POSE_WS  = `ws://${location.hostname}:8765`;   // head pose out
+const VIDEO_WS = `ws://${location.hostname}:8766`;   // video in
+
+// true: video panel follows your head (stays in front of you).
+// false: panel is fixed in the world.
+const HEAD_LOCKED = true;
+
+const statusEl = document.getElementById("status");
+const logEl    = document.getElementById("log");
+const enterBtn = document.getElementById("enter");
+const canvas   = document.getElementById("glcanvas");
+
+let poseWs = null, videoWs = null;
+let gl = null;
+
+// latest video frame as an ImageBitmap
+let latestBitmap = null;
+
+function report(tag, extra) {
+  const m = { _status: tag };
+  if (extra) Object.assign(m, extra);
+  if (poseWs && poseWs.readyState === WebSocket.OPEN) poseWs.send(JSON.stringify(m));
+}
+
+function connectPose() {
+  return new Promise((resolve) => {
+    poseWs = new WebSocket(POSE_WS);
+    poseWs.onopen = () => { statusEl.textContent = "Pose connected."; resolve(true); };
+    poseWs.onerror = () => { statusEl.textContent = "Pose WS error — is server_stage2.py running?"; };
+  });
+}
+
+function connectVideo() {
+  videoWs = new WebSocket(VIDEO_WS);
+  videoWs.binaryType = "blob";
+  videoWs.onopen = () => { statusEl.textContent += " Video connected."; };
+  videoWs.onerror = () => { logEl.textContent = "Video WS error — is video_server.py running?"; };
+  videoWs.onmessage = async (ev) => {
+    try {
+      const bmp = await createImageBitmap(ev.data);
+      if (latestBitmap) latestBitmap.close();
+      latestBitmap = bmp;
+    } catch (e) { /* skip bad frame */ }
+  };
+}
+
+// ---------- minimal WebGL for a textured quad ----------
+const VERT = `
+attribute vec2 aPos; attribute vec2 aUV; varying vec2 vUV;
+uniform mat4 uProj; uniform mat4 uView; uniform mat4 uModel;
+void main(){ vUV = aUV; gl_Position = uProj * uView * uModel * vec4(aPos, -2.0, 1.0); }
+`;
+const FRAG = `
+precision mediump float; varying vec2 vUV; uniform sampler2D uTex;
+void main(){ gl_FragColor = texture2D(uTex, vec2(vUV.x, vUV.y)); }
+`;
+
+function compile(gl, type, src){
+  const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+  if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s));
+  return s;
+}
+
+let prog, tex, quadBuf, aPos, aUV, uProj, uView, uModel, uTex;
+
+function initGL(){
+  prog = gl.createProgram();
+  gl.attachShader(prog, compile(gl, gl.VERTEX_SHADER, VERT));
+  gl.attachShader(prog, compile(gl, gl.FRAGMENT_SHADER, FRAG));
+  gl.linkProgram(prog); gl.useProgram(prog);
+
+  // A quad ~1.6m wide, 1.2m tall, centered ahead. z handled in shader (-2m).
+  const w = 0.8, h = 0.6;
+  const verts = new Float32Array([
+    -w,-h, 0,0,   w,-h, 1,0,   w,h, 1,1,
+    -w,-h, 0,0,   w,h, 1,1,   -w,h, 0,1,
+  ]);
+  quadBuf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
+
+  aPos = gl.getAttribLocation(prog, "aPos");
+  aUV  = gl.getAttribLocation(prog, "aUV");
+  uProj = gl.getUniformLocation(prog, "uProj");
+  uView = gl.getUniformLocation(prog, "uView");
+  uModel= gl.getUniformLocation(prog, "uModel");
+  uTex  = gl.getUniformLocation(prog, "uTex");
+
+  tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  // placeholder 1x1 so texture is complete before first frame
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([20,20,20,255]));
+}
+
+// Identity model so the panel sits at a fixed spot in the reference space,
+// i.e. it stays put in the world while your head (and the camera) move.
+const IDENTITY = new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
+
+function drawPanel(proj, view){
+  gl.useProgram(prog);
+  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+  gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 16, 0);
+  gl.enableVertexAttribArray(aUV);
+  gl.vertexAttribPointer(aUV, 2, gl.FLOAT, false, 16, 8);
+
+  if (latestBitmap){
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,latestBitmap);
+  }
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.uniform1i(uTex, 0);
+  gl.uniformMatrix4fv(uProj, false, proj);
+  // HEAD_LOCKED: use identity view so the panel stays fixed in front of the
+  // eye (follows head). Otherwise use the real view so it's world-fixed.
+  gl.uniformMatrix4fv(uView, false, HEAD_LOCKED ? IDENTITY : view);
+  gl.uniformMatrix4fv(uModel, false, IDENTITY);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+}
+
+async function start(){
+  if(!navigator.xr){ statusEl.textContent = "WebXR not available."; return; }
+  await connectPose();
+  connectVideo();
+
+  gl = canvas.getContext("webgl", { xrCompatible:true });
+  await gl.makeXRCompatible();
+  initGL();
+
+  let session;
+  try {
+    session = await navigator.xr.requestSession("immersive-vr", {
+      optionalFeatures: ["hand-tracking"],
+    });
+  }
+  catch(e){ statusEl.textContent = "VR start failed: " + e.message; return; }
+
+  session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl) });
+  enterBtn.disabled = true;
+  statusEl.textContent = "In VR.";
+
+  let refSpace = null;
+  for (const t of ["local-floor","local","viewer"]){
+    try { refSpace = await session.requestReferenceSpace(t); break; } catch(e){}
+  }
+
+  // Arm state. With hand tracking, a pinch fires a 'select' event.
+  let armed = false;
+
+  function sendArm(state){
+    if (poseWs && poseWs.readyState === WebSocket.OPEN){
+      poseWs.send(JSON.stringify({ _arm: state }));
+    }
+  }
+
+  // Pinch (index+thumb) toggles arm. Works with hand tracking or controllers.
+  session.addEventListener("select", () => {
+    armed = !armed;
+    sendArm(armed);
+    statusEl.textContent = armed ? "ARMED — tracking" : "DISARMED — home";
+  });
+
+  function onFrame(t, frame){
+    session.requestAnimationFrame(onFrame);
+    const pose = frame.getViewerPose(refSpace);
+    if(!pose) return;
+
+    // send head pose (same as before)
+    const o = pose.transform.orientation, p = pose.transform.position;
+    if (poseWs && poseWs.readyState === WebSocket.OPEN){
+      poseWs.send(JSON.stringify({
+        head_pose:{ x:p.x,y:p.y,z:p.z, qx:o.x,qy:o.y,qz:o.z,qw:o.w },
+        left_hand:[], right_hand:[], timestamp:t/1000.0,
+      }));
+    }
+
+    // render video panel to each eye
+    const layer = session.renderState.baseLayer;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
+    gl.clearColor(0,0,0,1);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    for (const view of pose.views){
+      const vp = layer.getViewport(view);
+      gl.viewport(vp.x, vp.y, vp.width, vp.height);
+      drawPanel(view.projectionMatrix, view.transform.inverse.matrix);
+    }
+  }
+  session.requestAnimationFrame(onFrame);
+
+  session.addEventListener("end", ()=>{ enterBtn.disabled=false; statusEl.textContent="VR ended."; });
+}
+
+enterBtn.addEventListener("click", start);
+</script>
+</body>
+</html>
