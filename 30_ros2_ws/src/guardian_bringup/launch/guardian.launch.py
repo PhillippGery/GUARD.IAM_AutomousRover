@@ -36,11 +36,15 @@ def launch_setup(context, *args, **kwargs):
     map_yaml = LaunchConfiguration('map').perform(context)
     rviz     = LaunchConfiguration('rviz').perform(context).lower() == 'true'
 
-    # teleop: '' (default) means "auto" — on for mapping (drive while
-    # building the map, existing behavior), off for navigation (autonomous,
-    # opt in with teleop:=true for a manual driving test).
+    # teleop: '' (default) means "auto". On real hardware it's always on,
+    # regardless of mapping/navigation mode — the Xbox controller should
+    # be able to override autonomous behavior the instant the robot is
+    # powered on, not just in mapping mode. Sim keeps the old mode-based
+    # default (on for mapping, off for navigation) so scripted/automated
+    # sim tests aren't affected. teleop:=true/false always overrides both.
     teleop_arg = LaunchConfiguration('teleop').perform(context)
-    teleop = (teleop_arg.lower() == 'true') if teleop_arg else (mode == 'mapping')
+    teleop = (teleop_arg.lower() == 'true') if teleop_arg else (
+        (not use_sim) or (mode == 'mapping'))
 
     # known_pose: '' (default) means "auto" — true in sim (deterministic
     # spawn point), false in real (unknown start, use global localization).
@@ -63,6 +67,10 @@ def launch_setup(context, *args, **kwargs):
     rviz_config  = os.path.join(bringup_dir, 'config', 'guardian.rviz')
     lidar_filter_params = os.path.join(
         bringup_dir, 'config', 'lidar_filter_params.yaml')
+    xbox_teleop_params = os.path.join(
+        bringup_dir, 'config', 'xbox_teleop.yaml')
+    activate_lifecycle_node = os.path.join(
+        bringup_dir, 'scripts', 'activate_lifecycle_node.sh')
 
     # One shared xacro file for sim and real — its <gazebo> blocks
     # (MecanumDrive plugin, gpu_lidar sensors) are only ever acted on by
@@ -211,6 +219,19 @@ def launch_setup(context, *args, **kwargs):
                 'topic': 'scan',
                 'frame_id': 'laser',
                 'rotation_speed': 5,
+                # Sweep protocol only accepts 500/750/1000 Hz (3 discrete
+                # steps). Tried 1000 for denser scans (200 pts/rotation vs
+                # 100 at 500) — but the serial link is a fixed 115200 baud
+                # regardless of this setting, and each scan packet is 7
+                # bytes (sizeof(response_scan_packet_s), protocol.hpp), so
+                # 1000Hz needs ~7000 B/s against an ~11520 B/s ceiling
+                # (~61% utilization) vs 500Hz's ~30%. Far less margin for
+                # the background reader thread to get starved when the CPU
+                # is busy (full Nav2 + SLAM + teleop running concurrently)
+                # — segfault/crash frequency increased noticeably after
+                # this change, consistent with buffer overruns from
+                # reduced headroom. Back to the safer default.
+                'sample_rate': 500,
             }],
         )
         sweep_scanner_back_node = Node(
@@ -225,6 +246,7 @@ def launch_setup(context, *args, **kwargs):
                 'topic': 'scan_back',
                 'frame_id': 'laser_back',
                 'rotation_speed': 5,
+                'sample_rate': 500,
             }],
         )
         _front_lidar_ready = {'done': False}
@@ -406,8 +428,34 @@ def launch_setup(context, *args, **kwargs):
                 launch_arguments={
                     'slam_params_file': slam_params,
                     'use_sim_time': 'true' if use_sim else 'false',
+                    # online_async_launch.py's own default (autostart=true,
+                    # use_lifecycle_manager=false) self-activates via an
+                    # internal configure->OnStateTransition->activate event
+                    # chain, which doesn't fire reliably once nested inside
+                    # our own TimerAction/IncludeLaunchDescription wrapper —
+                    # confirmed empirically: `ros2 lifecycle get
+                    # /slam_toolbox` sits at "inactive" forever. A
+                    # nav2_lifecycle_manager instance aimed at it also
+                    # proved unreliable (its first Configure call races
+                    # slam_toolbox's own startup). A single fixed-delay
+                    # `ros2 lifecycle set` pair was tried next but ALSO
+                    # proved unreliable on real hardware — LIDAR driver
+                    # crash/respawn cycles routinely add 10-30+
+                    # unpredictable seconds to startup, so any fixed delay
+                    # can fire before the node even exists yet and just
+                    # fail outright with no retry (confirmed: `ros2
+                    # lifecycle set /slam_toolbox activate` died with exit
+                    # code 1 on a run where LIDAR startup ran long).
+                    # activate_lifecycle_node.sh retries every 1s until it
+                    # actually succeeds, so it's correct regardless of how
+                    # long LIDAR startup actually takes.
+                    'use_lifecycle_manager': 'false',
+                    'autostart': 'false',
                 }.items(),
             ),
+            ExecuteProcess(
+                cmd=['bash', activate_lifecycle_node, 'slam_toolbox', '90'],
+                output='screen'),
         ]))
 
     # ── mode:=navigation — AMCL on saved map ────────────────────────────────
@@ -437,17 +485,37 @@ def launch_setup(context, *args, **kwargs):
                 name='amcl',
                 output='screen',
                 parameters=[amcl_params, use_sim_time],
+                # Confirmed via an actual GDB backtrace on a captured core
+                # dump: nav2_amcl can segfault inside its own particle-filter
+                # library during startup —
+                # nav2_amcl::AmclNode::uniformPoseGenerator (libamcl_core.so)
+                # called from pf_init_model (libpf_lib.so), while spreading
+                # the initial particle cloud across the map. This is inside
+                # the prebuilt ros-jazzy-nav2-amcl package, not our code, and
+                # didn't reproduce on an immediate standalone retry — a rare,
+                # intermittent crash in third-party code we can't patch
+                # directly. respawn mirrors the same mitigation already used
+                # for the flaky LIDAR driver.
+                respawn=True,
+                respawn_delay=2.0,
             ),
-            Node(
-                package='nav2_lifecycle_manager',
-                executable='lifecycle_manager',
-                name='lifecycle_manager_localization',
-                output='screen',
-                parameters=[use_sim_time, {
-                    'autostart': True,
-                    'node_names': ['map_server', 'amcl'],
-                }],
-            ),
+            # nav2_lifecycle_manager instances added in this launch file
+            # (as opposed to the pre-existing lifecycle_manager_navigation
+            # further up, which has always worked reliably) have shown a
+            # repeatable bug: they issue Configure to every managed node
+            # successfully, then stall forever before ever issuing
+            # Activate. A fixed-delay `ros2 lifecycle set` pair isn't
+            # reliable either — real-hardware startup timing varies too
+            # much (LIDAR driver crash/respawn cycles) for any guessed
+            # delay to consistently land after the node actually exists.
+            # activate_lifecycle_node.sh retries until each transition
+            # actually succeeds instead of gambling on a fixed wait.
+            ExecuteProcess(
+                cmd=['bash', activate_lifecycle_node, 'map_server', '90'],
+                output='screen'),
+            ExecuteProcess(
+                cmd=['bash', activate_lifecycle_node, 'amcl', '90'],
+                output='screen'),
         ]))
 
         # Autonomous localization — no RViz "2D Pose Estimate" needed. Seeds
@@ -471,27 +539,35 @@ def launch_setup(context, *args, **kwargs):
             ),
         ]))
 
-    # ── teleop:=true (or mode:=mapping default) — GUARDIAN's own keyboard
-    # teleop node, the same one used on real hardware, so a sim test here
-    # exercises the exact code path that runs on the rover. It reads
-    # keyboard input directly via evdev (/dev/input/eventN), not terminal
-    # raw-mode, so it does NOT need its own TTY — no terminal wrapper here.
-    # (An earlier revision wrapped it in `gnome-terminal --wait --`, which
-    # looked attached but wasn't: gnome-terminal hands the actual process
-    # off to the separate, persistent gnome-terminal-server daemon over
-    # D-Bus, so ros2 launch's shutdown signal only reached the thin wrapper
-    # it spawned — the real node orphaned and kept running, still holding
-    # /dev/input and still publishing to /cmd_vel, stacking up across every
-    # session that didn't get killed at the exact same instant as the
-    # wrapper. Plain output='screen', same as every other node, avoids all
-    # of that and also works headless over SSH.)
+    # ── teleop:=true (or mode:=mapping default) — Xbox controller teleop,
+    # using the standard ROS2 joy + teleop_twist_joy packages rather than
+    # GUARDIAN's own keyboard_teleop_node. joy_node reads the raw
+    # /dev/input/jsN device and publishes sensor_msgs/Joy; teleop_twist_joy
+    # converts that into geometry_msgs/Twist on /cmd_vel using
+    # xbox_teleop.yaml's holonomic axis mapping (left stick =
+    # forward/back + strafe, right stick X = rotate, LB = deadman hold,
+    # RB = turbo) — same /cmd_vel contract as the old keyboard node, so
+    # nothing downstream (mecanum_kinematics_node onward) changes.
     if teleop:
-        actions.append(Node(
-            package='guardian_teleop',
-            executable='keyboard_teleop_node',
-            name='keyboard_teleop_node',
-            output='screen',
-        ))
+        actions += [
+            Node(
+                package='joy',
+                executable='joy_node',
+                name='joy_node',
+                output='screen',
+                parameters=[{
+                    'deadzone': 0.15,
+                    'autorepeat_rate': 20.0,
+                }],
+            ),
+            Node(
+                package='teleop_twist_joy',
+                executable='teleop_node',
+                name='teleop_twist_joy_node',
+                output='screen',
+                parameters=[xbox_teleop_params],
+            ),
+        ]
 
     return actions
 
@@ -552,8 +628,10 @@ def generate_launch_description():
             description='Gazebo spawn z (use_sim only)'),
         DeclareLaunchArgument(
             'teleop', default_value='',
-            description="'true'/'false' — launch GUARDIAN's own keyboard "
-                         'teleop node. Empty (default) auto-selects: on '
-                         'for mode:=mapping, off for mode:=navigation.'),
+            description="'true'/'false' — launch Xbox controller teleop "
+                         '(joy + teleop_twist_joy). Empty (default) '
+                         'auto-selects: always on for real hardware '
+                         '(any mode), mode-based for sim (on for mapping, '
+                         'off for navigation).'),
         OpaqueFunction(function=launch_setup),
     ])

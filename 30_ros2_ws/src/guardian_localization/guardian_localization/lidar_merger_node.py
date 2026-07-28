@@ -58,6 +58,10 @@ class LidarMergerNode(Node):
         self.declare_parameter('num_samples', 500)
         self.declare_parameter('range_min', 0.1)
         self.declare_parameter('range_max', 20.0)
+        # A sensor that stops publishing (crash, flaky connector) still
+        # leaves its last scan cached forever otherwise — stale data from
+        # a sensor that's actually dead is worse than just dropping it.
+        self.declare_parameter('sensor_timeout_sec', 2.0)
 
         front_topic = self.get_parameter('front_input_topic').value
         back_topic = self.get_parameter('back_input_topic').value
@@ -74,6 +78,12 @@ class LidarMergerNode(Node):
 
         self._front_scan = None
         self._back_scan = None
+        self._front_stamp = None
+        self._back_stamp = None
+        # Tracks the last degraded/healthy state we logged, so the
+        # highly-visible warning only fires on actual state changes
+        # instead of spamming every scan.
+        self._last_logged_state = None
 
         self.pub = self.create_publisher(LaserScan, out_topic, pub_qos)
         self.front_sub = self.create_subscription(
@@ -86,15 +96,44 @@ class LidarMergerNode(Node):
 
     def _front_callback(self, msg):
         self._front_scan = msg
+        self._front_stamp = self.get_clock().now()
         self._publish_merged()
 
     def _back_callback(self, msg):
         self._back_scan = msg
+        self._back_stamp = self.get_clock().now()
         self._publish_merged()
 
+    def _live_scan(self, scan, stamp):
+        """None if this sensor has never reported, or hasn't reported
+        recently enough to trust (crashed/disconnected, not just slow)."""
+        if scan is None or stamp is None:
+            return None
+        timeout = float(self.get_parameter('sensor_timeout_sec').value)
+        age_sec = (self.get_clock().now() - stamp).nanoseconds / 1e9
+        return scan if age_sec <= timeout else None
+
     def _publish_merged(self):
-        if self._front_scan is None or self._back_scan is None:
-            return  # wait until both sensors have reported at least once
+        front = self._live_scan(self._front_scan, self._front_stamp)
+        back = self._live_scan(self._back_scan, self._back_stamp)
+
+        if front is None and back is None:
+            return  # nothing to publish yet, or both sensors are down
+
+        # Highly visible, state-change-triggered (not per-scan) logging —
+        # degraded coverage should be obvious, not silent.
+        state = ('both' if front is not None and back is not None else
+                  'front-only' if front is not None else 'back-only')
+        if state != self._last_logged_state:
+            if state == 'both':
+                self.get_logger().info(
+                    'lidar_merger_node: both sensors reporting — full 360 coverage')
+            else:
+                missing = 'back' if state == 'front-only' else 'front'
+                self.get_logger().warn(
+                    f'lidar_merger_node: {missing} LIDAR not reporting — '
+                    f'DEGRADED, {state.replace("-only", "")}-half coverage only')
+            self._last_logged_state = state
 
         num_samples = int(self.get_parameter('num_samples').value)
         range_min = float(self.get_parameter('range_min').value)
@@ -104,20 +143,22 @@ class LidarMergerNode(Node):
 
         merged = [float('inf')] * num_samples
 
-        self._project_into(
-            merged, self._front_scan,
-            self.get_parameter('front_x').value,
-            self.get_parameter('front_y').value,
-            self.get_parameter('front_yaw').value,
-            out_angle_min, out_angle_increment, num_samples,
-            range_min, range_max)
-        self._project_into(
-            merged, self._back_scan,
-            self.get_parameter('back_x').value,
-            self.get_parameter('back_y').value,
-            self.get_parameter('back_yaw').value,
-            out_angle_min, out_angle_increment, num_samples,
-            range_min, range_max)
+        if front is not None:
+            self._project_into(
+                merged, front,
+                self.get_parameter('front_x').value,
+                self.get_parameter('front_y').value,
+                self.get_parameter('front_yaw').value,
+                out_angle_min, out_angle_increment, num_samples,
+                range_min, range_max)
+        if back is not None:
+            self._project_into(
+                merged, back,
+                self.get_parameter('back_x').value,
+                self.get_parameter('back_y').value,
+                self.get_parameter('back_yaw').value,
+                out_angle_min, out_angle_increment, num_samples,
+                range_min, range_max)
 
         out = LaserScan()
         offset_sec = float(self.get_parameter('timestamp_offset_sec').value)
