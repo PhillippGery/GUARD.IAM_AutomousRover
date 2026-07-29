@@ -44,7 +44,7 @@ void setup() {
     panServo.write(a); tiltServo.write(a); delay(60);
   }
 
-  applyCommand(0, 90);
+  applyCommand(96, 90);
   Serial.println("GUARD.IAM PTZ ready. Send: pan,tilt");
 }
 

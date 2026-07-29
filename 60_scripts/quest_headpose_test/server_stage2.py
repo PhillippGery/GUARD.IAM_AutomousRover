@@ -73,7 +73,7 @@ TILT_GAIN   = 1.0
 # Home position: where the camera holds while DISARMED (before you press the
 # controller button to start tracking). Change these to set the data-collection
 # starting frame. Currently center; edit freely.
-HOME_PAN    = 0
+HOME_PAN    = 96
 HOME_TILT   = 90
 
 # Servo travel limits (must match firmware).
