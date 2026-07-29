@@ -1,0 +1,18 @@
+# GUARDIAN stable device names — arms + wrist cameras
+# Identical chips (QinHeng arms, Sonix cameras) share serials, so these key on
+# PHYSICAL USB PORT. Each device must always go in its assigned socket.
+# Tied to this USB hub layout (3-5.x arms, 3-3/3-4 cams) — regenerate if the
+# hub moves or on the MiniPC.
+
+# --- Arm controllers (CH340 serial) ---
+SUBSYSTEM=="tty", KERNELS=="3-3.1:1.0", SYMLINK+="guardian_right_leader"
+SUBSYSTEM=="tty", KERNELS=="3-3.2:1.0", SYMLINK+="guardian_left_leader"
+SUBSYSTEM=="tty", KERNELS=="3-3.3:1.0", SYMLINK+="guardian_left_follower"
+SUBSYSTEM=="tty", KERNELS=="3-3.4:1.0", SYMLINK+="guardian_right_follower"
+
+# --- Wrist cameras (capture node only: index 0) ---
+# 3-4 = right wrist, 3-3 = left wrist  (per your mapping)
+SUBSYSTEM=="video4linux", KERNELS=="3-5.4:1.0", ATTR{index}=="0", SYMLINK+="cam_right_wrist"
+SUBSYSTEM=="video4linux", KERNELS=="3-5.2:1.0", ATTR{index}=="0", SYMLINK+="cam_left_wrist"
+# --- Overhead camera (pan/tilt gimbal) ---
+SUBSYSTEM=="video4linux", KERNELS=="3-5.3:1.0", ATTR{index}=="0", SYMLINK+="cam_overhead"

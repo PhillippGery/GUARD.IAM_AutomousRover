@@ -1,0 +1,14 @@
+# Python deps for the GUARD.IAM manipulation pipeline.
+# The conda env (environment.yml) already provides torch and most ML deps —
+# install that FIRST, then the equibim fork, then this file.
+
+# --- equibim LeRobot fork (the pipeline imports `lerobot` from here) ---
+# Installed editable in the README, but pinned here too so `pip install -r`
+# can pull it directly. SSH form (needs GitHub SSH access):
+lerobot @ git+ssh://git@github.com/ZhangZhiyuanZhang/lerobot-equibim.git
+# If you don't have SSH set up, comment the line above and use HTTPS instead:
+# lerobot @ git+https://github.com/ZhangZhiyuanZhang/lerobot-equibim.git
+
+# --- pipeline extras not guaranteed by the fork/env ---
+evdev            # X-keys foot pedal bridge (60_scripts/pedal_bridge.py)
+numpy

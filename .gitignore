@@ -38,3 +38,17 @@ Thumbs.db
 *.swp
 *.bak
 *~
+
+# --- ML pipeline artifacts (80_manipulation) ---
+outputs/
+*.safetensors
+*.ckpt
+*.pt
+*.mp4
+wandb/
+.cache/
+__pycache__/
+*.py[cod]
+home_action.json
+frames_*.gv
+frames_*.pdf
