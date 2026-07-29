@@ -18,14 +18,21 @@ dist/
 *.elf
 *.bin
 
-# CAD — use Git LFS for large files (case-insensitive: .STEP/.StEp all match)
-*.stl
+# CAD — tracked via Git LFS (STL, STEP, SolidWorks, Fusion 360)
+# Real files are committed through LFS; only temp/backup/lock files ignored here.
+# SolidWorks backups and auto-recover files
+*.sldprt.bak
+*.sldasm.bak
+*.slddrw.bak
+~$*.sldprt
+~$*.sldasm
+~$*.slddrw
+# Fusion 360 local cache
+*.f3d.bak
+# STEP/STL exports that are gitignored EXCEPT the ROS2 mesh exceptions below
 *.[Ss][Tt][Ee][Pp]
 *.[Ss][Tt][Pp]
-*.f3d
-# ...except generated sim meshes checked out of CAD by
-# 20_hardware/cad/step_to_description.py — these must ship with the repo
-# so a fresh clone/build actually has geometry to render.
+# ...except generated sim meshes that must ship with the repo for robot_state_publisher
 !30_ros2_ws/src/guardian_description/meshes/**
 
 # OS
