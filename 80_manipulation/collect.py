@@ -15,25 +15,42 @@ Controls during recording (foot pedal or keyboard):
     RIGHT ARROW  keep this episode, continue
     LEFT ARROW   scrap & re-record this episode (discards the take)
     ESC          stop the whole session
+
+Between episodes only (NOT during a recording take):
+    SPACEBAR     pause for a break  (center foot pedal maps to SPACE via
+                 pedal_bridge.py, so you can pause hands-free during scene reset)
 """
 
 import os
 import shutil
+import threading
 from pathlib import Path
 
 from config import make_follower, make_leader, FPS
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
-from lerobot.datasets.utils import hw_to_dataset_features
+from lerobot.utils.feature_utils import hw_to_dataset_features
 from lerobot.scripts.lerobot_record import record_loop
-from lerobot.utils.control_utils import init_keyboard_listener
+from lerobot.utils.keyboard_input import init_keyboard_listener
 from lerobot.utils.visualization_utils import init_rerun
 from lerobot.processor import make_default_processors
 from lerobot.utils.utils import log_say
 
+# pynput ships with lerobot (its own keyboard listener uses it). We use it for a
+# SEPARATE, passive spacebar watcher that only sets a flag — it never consumes or
+# competes for the arrow/ESC keys that lerobot's record_loop listens for, because
+# we only READ our flag between episodes, when record_loop is not running.
+try:
+    from pynput import keyboard as _pk
+except Exception:                       # pragma: no cover
+    _pk = None
+
 # ── Settings ───────────────────────────────────────────────────────────────────
-NUM_EPISODES = 75                          # 3 for dry run, ~50 for real collection
+NUM_EPISODES =  100               # 3 for dry run, ~50 for real collection
 EPISODE_TIME_SEC = 60                     # give yourself time — right arrow ends early
 RESET_TIME_SEC = 20                       # time to reset the scene between episodes
+PAUSE_EVERY = 10                          # auto-pause for a break every N kept episodes
+                                          # (0 disables auto-pause). SPACEBAR (or the
+                                          # center pedal) also pauses between episodes.
 REPO_ID = "vedant/guardian_pick_place"    # any local name; keep practice runs on a
                                           # different id (e.g. guardian_practice)
 TASK = "Pick up the object and place it in the bin"   # must match what you demo
@@ -66,7 +83,65 @@ def print_banner():
     print("    RIGHT ARROW  ->  keep this episode, continue")
     print("    LEFT ARROW   ->  scrap & re-record this episode")
     print("    ESC          ->  stop the whole session")
+    print("    SPACEBAR     ->  pause (between episodes only; center pedal maps here)")
     print(bar, flush=True)
+
+
+# ── Spacebar pause: passive flag only ──────────────────────────────────────────
+# A tiny listener sets _space_pressed when SPACE goes down. We ONLY read/clear it
+# between episodes (record_loop not running), so it never competes with lerobot's
+# own arrow/ESC listener during a take. If pynput is unavailable, spacebar-pause
+# is simply disabled (auto-pause via PAUSE_EVERY still works).
+_space_pressed = threading.Event()
+
+
+def _on_press(key):
+    if key == _pk.Key.space:
+        _space_pressed.set()
+
+
+def _start_space_listener():
+    if _pk is None:
+        print("[pause] pynput unavailable — spacebar pause off (PAUSE_EVERY still works).",
+              flush=True)
+        return None
+    listener = _pk.Listener(on_press=_on_press)
+    listener.daemon = True
+    listener.start()
+    return listener
+
+
+def pause_for_break(next_episode_num):
+    """Between-episode pause. Blocks on a terminal prompt (recording is stopped and
+    the arms are idle here, so a plain input() is safe — it does NOT fight the
+    arrow/pedal listener, which only matters during a recording loop).
+
+    ENTER            -> resume, record the next episode
+    type 'p' + ENTER -> extended pause: hold here until you press ENTER again
+    type 'q' + ENTER -> stop the session cleanly (finalizes what's collected)
+
+    Returns "go" to continue or "stop" to end the session.
+    """
+    log_say("Paused", blocking=False)
+    print("\n" + "-" * 60, flush=True)
+    print(f"  PAUSED before episode {next_episode_num}/{NUM_EPISODES}.", flush=True)
+    print("    ENTER   -> resume and record the next episode", flush=True)
+    print("    p+ENTER -> hold here for a longer break", flush=True)
+    print("    q+ENTER -> stop the session (saves what you've collected)", flush=True)
+    print("-" * 60, flush=True)
+    while True:
+        try:
+            choice = input("  [pause] > ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print("\n[pause] interpreted as STOP.", flush=True)
+            return "stop"
+        if choice == "q":
+            return "stop"
+        if choice == "p":
+            print("  [pause] holding — take your time. Press ENTER when ready.", flush=True)
+            continue
+        log_say("Resuming", blocking=True)
+        return "go"
 
 
 if WIPE_BEFORE_RUN:
@@ -89,6 +164,7 @@ dataset = LeRobotDataset.create(
 )
 
 _, events = init_keyboard_listener()
+_space_listener = _start_space_listener()
 init_rerun(session_name="bimanual_collect")
 teleop_action_proc, robot_action_proc, robot_obs_proc = make_default_processors()
 
@@ -142,8 +218,34 @@ while episode_idx < NUM_EPISODES and not stop:
 
     # RIGHT ARROW or time expired — keep it.
     dataset.save_episode()
-    print(f"[EPISODE {episode_idx + 1}/{NUM_EPISODES}] saved.", flush=True)
     episode_idx += 1
+
+    # Progress line + when the next auto-break lands, so the operator always
+    # knows how far in they are and how long until they can step away.
+    if PAUSE_EVERY:
+        until_break = PAUSE_EVERY - (episode_idx % PAUSE_EVERY)
+        if episode_idx % PAUSE_EVERY == 0 or episode_idx >= NUM_EPISODES:
+            hint = "break coming up"
+        else:
+            hint = f"{until_break} more until the next break"
+        print(f"[EPISODE {episode_idx}/{NUM_EPISODES}] saved  —  {hint}.", flush=True)
+    else:
+        print(f"[EPISODE {episode_idx}/{NUM_EPISODES}] saved.", flush=True)
+
+    # Pause between episodes if EITHER: spacebar/center-pedal was pressed during
+    # the take just finished, OR we've hit the PAUSE_EVERY auto-break. Checked
+    # here (record_loop not running) so it never fights lerobot's key listener.
+    space_asked = _space_pressed.is_set()
+    _space_pressed.clear()
+    auto_break = (PAUSE_EVERY and episode_idx < NUM_EPISODES
+                  and episode_idx % PAUSE_EVERY == 0)
+    if (space_asked or auto_break) and episode_idx < NUM_EPISODES:
+        if space_asked:
+            print("[pause] spacebar/pedal pause requested.", flush=True)
+        if pause_for_break(episode_idx + 1) == "stop":
+            print("\n[STOP] Session stopped from pause.", flush=True)
+            stop = True
+            break
 
     # Scene reset between kept episodes (skip after the last one).
     if episode_idx < NUM_EPISODES:

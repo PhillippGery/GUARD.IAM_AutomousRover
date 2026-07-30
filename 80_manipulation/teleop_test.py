@@ -22,7 +22,7 @@ Use it to confirm, before collecting:
 
 from config import make_follower, make_leader, FPS
 from lerobot.scripts.lerobot_record import record_loop
-from lerobot.utils.control_utils import init_keyboard_listener
+from lerobot.utils.keyboard_input import init_keyboard_listener
 from lerobot.utils.visualization_utils import init_rerun
 from lerobot.processor import make_default_processors
 

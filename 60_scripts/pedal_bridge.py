@@ -8,7 +8,7 @@ and injects the matching ARROW KEY via uinput, so collect.py's existing
 keyboard listener catches them exactly as if you'd typed.
 
     LEFT pedal   (BTN_1) -> LEFT ARROW   (scrap & re-record this episode)
-    CENTER pedal (BTN_2) -> nothing (intentionally unmapped)
+    CENTER pedal (BTN_2) -> SPACEBAR     (pause for a break, between episodes only)
     RIGHT pedal  (BTN_3) -> RIGHT ARROW  (keep this episode, continue)
 
 ESC (stop session) stays on the keyboard on purpose, so a stray pedal tap
@@ -25,20 +25,18 @@ Ctrl-C here to stop the bridge.
 """
 
 import sys
-import time
-from evdev import InputDevice
-dev = InputDevice("/dev/input/event25")
 
 try:
-    from evdev import InputDevice, UInput, categorize, ecodes as e, list_devices
+    from evdev import InputDevice, UInput, ecodes as e, list_devices
 except ImportError:
     sys.exit("evdev not installed. Run:  pip install evdev  (inside the lerobot env)")
 
 PEDAL_NAME = "P. I. Engineering XK-3 Foot Pedal"
 
-# Map pedal button code -> key to inject. Center (BTN_2 / 258) is deliberately absent.
+# Map pedal button code -> key to inject.
 BTN_TO_KEY = {
     e.BTN_1: e.KEY_LEFT,    # 257 -> left arrow  : scrap & re-record
+    e.BTN_2: e.KEY_SPACE,   # 258 -> spacebar    : pause (between episodes only)
     e.BTN_3: e.KEY_RIGHT,   # 259 -> right arrow : keep & continue
 }
 
@@ -59,13 +57,25 @@ def find_pedal():
 
 
 def main():
+    # Optional explicit override: sudo $(which python) pedal_bridge.py /dev/input/eventNN
+    if len(sys.argv) > 1:
+        try:
+            dev = InputDevice(sys.argv[1])
+        except Exception as ex:
+            sys.exit(f"[pedal] could not open {sys.argv[1]}: {ex}")
+    else:
+        dev = find_pedal()
 
-    # Virtual keyboard that can emit the arrow keys.
-    ui = UInput({e.EV_KEY: [e.KEY_LEFT, e.KEY_RIGHT]}, name="xk3-pedal-keys")
+    if dev is None:
+        sys.exit("[pedal] XK-3 not found. List devices with `sudo evtest`, find the "
+                 "node reporting BTN_* events, and pass it explicitly:\n"
+                 "    sudo $(which python) pedal_bridge.py /dev/input/eventNN")
+
+    # Virtual keyboard that can emit the arrow keys + spacebar.
+    ui = UInput({e.EV_KEY: [e.KEY_LEFT, e.KEY_RIGHT, e.KEY_SPACE]}, name="xk3-pedal-keys")
 
     print(f"[pedal] reading: {dev.path}  ({dev.name})")
-    print("[pedal] LEFT pedal -> LEFT ARROW (redo) | RIGHT pedal -> RIGHT ARROW (keep) "
-          "| CENTER -> unmapped")
+    print("[pedal] LEFT -> redo | CENTER -> SPACE/pause | RIGHT -> keep")
     print("[pedal] running — drive collect.py with your feet. Ctrl-C to stop.", flush=True)
 
     # Grab so the raw BTN_* events don't also leak to the desktop as clicks.
@@ -87,7 +97,9 @@ def main():
                 ui.syn()
                 ui.write(e.EV_KEY, key, 0)   # key up
                 ui.syn()
-                label = "LEFT/redo" if key == e.KEY_LEFT else "RIGHT/keep"
+                label = {e.KEY_LEFT: "LEFT/redo",
+                         e.KEY_RIGHT: "RIGHT/keep",
+                         e.KEY_SPACE: "CENTER/pause"}.get(key, "?")
                 print(f"[pedal] {label}", flush=True)
     except KeyboardInterrupt:
         pass

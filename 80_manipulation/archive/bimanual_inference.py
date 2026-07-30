@@ -16,13 +16,13 @@ import time
 
 from lerobot.cameras.opencv.configuration_opencv import OpenCVCameraConfig, Cv2Rotation
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
-from lerobot.datasets.utils import hw_to_dataset_features
+from lerobot.utils.feature_utils import hw_to_dataset_features
 from lerobot.policies.act.modeling_act import ACTPolicy
 from lerobot.policies.factory import make_pre_post_processors
 from lerobot.robots.bi_so_follower import BiSOFollower, BiSOFollowerConfig
 from lerobot.robots.so_follower import SO101FollowerConfig
 from lerobot.scripts.lerobot_record import record_loop
-from lerobot.utils.control_utils import init_keyboard_listener
+from lerobot.utils.keyboard_input import init_keyboard_listener
 from lerobot.utils.utils import log_say
 from lerobot.utils.visualization_utils import init_rerun
 from lerobot.processor import make_default_processors
@@ -95,7 +95,6 @@ robot.connect()
 preprocessor, postprocessor = make_pre_post_processors(
     policy_cfg=policy,
     pretrained_path=LOCAL_CKPT_PATH,
-    dataset_stats=dataset.meta.stats,
 )
 teleop_action_processor, robot_action_processor, robot_observation_processor = make_default_processors()
 
