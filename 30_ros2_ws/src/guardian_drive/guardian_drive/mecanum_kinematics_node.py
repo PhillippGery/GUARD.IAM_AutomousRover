@@ -33,7 +33,17 @@ class MecanumKinematicsNode(Node):
         max_rpm = self.get_parameter('max_rpm').value
 
         vx    = msg.linear.x
-        vy    = msg.linear.y
+        # Negated: this node only runs on real hardware (sim's /cmd_vel
+        # goes straight into Gazebo's own MecanumDrive plugin instead,
+        # bypassing this file entirely), and strafe came out mirrored on
+        # the real robot while forward/back was correct — the real
+        # chassis's mecanum roller "X" diagonal pattern is the mirror
+        # image of what the fl/fr/bl/br formula below assumes. Forward
+        # isn't affected by that (every wheel gets the same +vx either
+        # way), but strafe direction is, so flipping vy's sign here
+        # matches the formula to this specific robot instead of rewriting
+        # all four wheel equations.
+        vy    = -msg.linear.y
         omega = msg.angular.z
         k     = L + W
         to_rpm = 60.0 / (2.0 * pi)
