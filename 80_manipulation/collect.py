@@ -45,20 +45,20 @@ except Exception:                       # pragma: no cover
     _pk = None
 
 # ── Settings ───────────────────────────────────────────────────────────────────
-NUM_EPISODES =  100               # 3 for dry run, ~50 for real collection
+NUM_EPISODES =  50               # real collection
 EPISODE_TIME_SEC = 60                     # give yourself time — right arrow ends early
 RESET_TIME_SEC = 20                       # time to reset the scene between episodes
 PAUSE_EVERY = 10                          # auto-pause for a break every N kept episodes
                                           # (0 disables auto-pause). SPACEBAR (or the
                                           # center pedal) also pauses between episodes.
-REPO_ID = "vedant/guardian_pick_place"    # any local name; keep practice runs on a
+REPO_ID = "guardian_strawberry_pick"   # real dataset
                                           # different id (e.g. guardian_practice)
-TASK = "Pick up the object and place it in the bin"   # must match what you demo
+TASK = "Pick up the strawberry and place it in the bin"
 
 # Practice mode: wipe any existing dataset with this REPO_ID before running, so
 # repeated dry runs don't hit the "dataset exists" error. FLIP THIS TO FALSE
 # before real collection so a stray re-run can't delete a session you care about.
-WIPE_BEFORE_RUN = True
+WIPE_BEFORE_RUN = False
 # ───────────────────────────────────────────────────────────────────────────────
 
 
