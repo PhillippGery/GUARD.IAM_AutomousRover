@@ -18,11 +18,7 @@ dist/
 *.elf
 *.bin
 
-# CAD — use Git LFS for large files
-*.stl
-*.step
-*.stp
-*.f3d
+# CAD — tracked via Git LFS (see .gitattributes)
 
 # OS
 .DS_Store
