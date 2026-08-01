@@ -29,6 +29,14 @@
 
 set -u
 
+# Without this, killing the parent launch (Ctrl+C / ros2 launch shutdown)
+# left this script's `while true` loop running as an orphan every single
+# time — it never noticed the signal, so it (and whatever `ros2 lifecycle
+# get`/`set` call happened to be mid-flight) had to be found and
+# `kill -9`'d by hand after the fact. Trapping here makes the script exit
+# promptly on the same signal ros2 launch actually sends.
+trap 'echo "activate_lifecycle_node.sh: $NODE_NAME received shutdown signal, exiting"; exit 0' SIGINT SIGTERM
+
 NODE_NAME="$1"
 TRANSITION_TIMEOUT_SEC="${2:-90}"
 POLL_INTERVAL_SEC="${3:-3}"

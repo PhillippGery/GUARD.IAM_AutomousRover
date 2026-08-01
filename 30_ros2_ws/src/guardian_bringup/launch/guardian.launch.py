@@ -1,9 +1,18 @@
 # MIT License
 # GUARDIAN — StarkHacks 2026
 # Launch: guardian
-# Purpose: single unified entry point for GUARDIAN — sim/real x mapping/navigation
+# Purpose: the software stack — Nav2, SLAM/AMCL, RViz — for sim or real
+#          hardware. On real hardware (use_sim:=false) this assumes
+#          guardian_hardware.launch.py is ALREADY running separately,
+#          providing the drive chain, both LIDARs, and Xbox teleop — this
+#          file no longer launches any of that itself, so it can be killed
+#          and relaunched freely while iterating on nav2/SLAM params without
+#          ever dropping the hardware connections. In sim, this file is
+#          still the single entry point (Gazebo, gz bridge, robot
+#          description, teleop all included) — sim doesn't need the split
+#          since it isn't subject to the same real-hardware flakiness.
 #
-#   use_sim:=true/false   — Gazebo simulation vs real sensors/drive
+#   use_sim:=true/false   — Gazebo simulation vs real hardware (see above)
 #   mode:=mapping/navigation — SLAM Toolbox live mapping vs AMCL on a saved map
 
 import os
@@ -29,22 +38,22 @@ def launch_setup(context, *args, **kwargs):
     slam_params       = os.path.join(bringup_dir, 'config', 'slam_params.yaml')
     amcl_params       = os.path.join(bringup_dir, 'config', 'amcl_params.yaml')
     map_server_params = os.path.join(bringup_dir, 'config', 'map_server_params.yaml')
-    robot_params      = os.path.join(bringup_dir, 'config', 'robot_params.yaml')
 
     use_sim  = LaunchConfiguration('use_sim').perform(context).lower() == 'true'
     mode     = LaunchConfiguration('mode').perform(context).lower()
     map_yaml = LaunchConfiguration('map').perform(context)
     rviz     = LaunchConfiguration('rviz').perform(context).lower() == 'true'
 
-    # teleop: '' (default) means "auto". On real hardware it's always on,
-    # regardless of mapping/navigation mode — the Xbox controller should
-    # be able to override autonomous behavior the instant the robot is
-    # powered on, not just in mapping mode. Sim keeps the old mode-based
-    # default (on for mapping, off for navigation) so scripted/automated
-    # sim tests aren't affected. teleop:=true/false always overrides both.
+    # teleop is sim-only here — on real hardware it's always on, owned
+    # entirely by guardian_hardware.launch.py (no flag needed, it's just
+    # always running alongside this file), so launching it here too would
+    # spawn a second, conflicting joy_node/teleop_twist_joy_node pair.
+    # '' (default) auto-selects mode-based (on for mapping, off for
+    # navigation) so scripted/automated sim tests aren't affected;
+    # teleop:=true/false always overrides.
     teleop_arg = LaunchConfiguration('teleop').perform(context)
-    teleop = (teleop_arg.lower() == 'true') if teleop_arg else (
-        (not use_sim) or (mode == 'mapping'))
+    teleop = use_sim and (
+        (teleop_arg.lower() == 'true') if teleop_arg else (mode == 'mapping'))
 
     # known_pose: '' (default) means "auto" — true in sim (deterministic
     # spawn point), false in real (unknown start, use global localization).
@@ -86,17 +95,18 @@ def launch_setup(context, *args, **kwargs):
         # Global use_sim_time for every node launched below (real hardware
         # still needs this explicitly False — no /clock source without sim).
         SetParameter('use_sim_time', use_sim),
-
-        # ── Always: robot description ──────────────────────────────────────
-        Node(
-            package='robot_state_publisher',
-            executable='robot_state_publisher',
-            parameters=[{'robot_description': robot_desc}, use_sim_time],
-        ),
     ]
 
     # ── use_sim:=true — Gazebo + gz bridge ──────────────────────────────────
     if use_sim:
+        # robot_state_publisher lives here (sim only) — on real hardware
+        # it's owned by guardian_hardware.launch.py instead, which must be
+        # running alongside this file (see that launch file's header).
+        actions.append(Node(
+            package='robot_state_publisher',
+            executable='robot_state_publisher',
+            parameters=[{'robot_description': robot_desc}, use_sim_time],
+        ))
         gz_sim_dir = get_package_share_directory('ros_gz_sim')
         world_file = (world_arg if world_arg else
                       os.path.join(description_dir, 'worlds', 'guardian_world.sdf'))
@@ -201,172 +211,20 @@ def launch_setup(context, *args, **kwargs):
         ]
         nav2_delay = 8.0
 
-    # ── use_sim:=false — real sensors + drive ───────────────────────────────
+    # ── use_sim:=false — real hardware ───────────────────────────────────────
+    # Nothing physical is launched here anymore — robot_state_publisher,
+    # joint_state_publisher, the drive chain (mecanum_kinematics_node,
+    # phidget_bridge_node), both Sweep LIDARs, the lidar_republisher/merger
+    # chain, and Xbox teleop all moved to guardian_hardware.launch.py, a
+    # separate, standalone, self-healing launch file meant to be started
+    # once and left running for the session (every node in it has
+    # respawn=True). Run it first:
+    #     ros2 launch guardian_bringup guardian_hardware.launch.py
+    # This file then only owns the software stack on top (Nav2, SLAM/AMCL,
+    # RViz) — it can be killed and relaunched freely while iterating on nav2
+    # params or SLAM tuning without ever dropping the LIDAR/motor/teleop
+    # connections that guardian_hardware.launch.py maintains independently.
     else:
-        # Defined ahead of the actions list: sweep_scanner_front_node is
-        # both launched below and used as the target of the
-        # RegisterEventHandler that starts sweep_scanner_back once it's
-        # actually ready (see the comment further down).
-        sweep_scanner_front_node = Node(
-            package='l3xz_sweep_scanner',
-            executable='l3xz_sweep_scanner_node',
-            name='sweep_scanner_front',
-            output='screen',
-            respawn=True,
-            respawn_delay=2.0,
-            parameters=[{
-                'serial_port': '/dev/lidar_front',
-                'topic': 'scan',
-                'frame_id': 'laser',
-                'rotation_speed': 5,
-                # Sweep protocol only accepts 500/750/1000 Hz (3 discrete
-                # steps). Tried 1000 for denser scans (200 pts/rotation vs
-                # 100 at 500) — but the serial link is a fixed 115200 baud
-                # regardless of this setting, and each scan packet is 7
-                # bytes (sizeof(response_scan_packet_s), protocol.hpp), so
-                # 1000Hz needs ~7000 B/s against an ~11520 B/s ceiling
-                # (~61% utilization) vs 500Hz's ~30%. Far less margin for
-                # the background reader thread to get starved when the CPU
-                # is busy (full Nav2 + SLAM + teleop running concurrently)
-                # — segfault/crash frequency increased noticeably after
-                # this change, consistent with buffer overruns from
-                # reduced headroom. Back to the safer default.
-                'sample_rate': 500,
-            }],
-        )
-        sweep_scanner_back_node = Node(
-            package='l3xz_sweep_scanner',
-            executable='l3xz_sweep_scanner_node',
-            name='sweep_scanner_back',
-            output='screen',
-            respawn=True,
-            respawn_delay=2.0,
-            parameters=[{
-                'serial_port': '/dev/lidar_back',
-                'topic': 'scan_back',
-                'frame_id': 'laser_back',
-                'rotation_speed': 5,
-                'sample_rate': 500,
-            }],
-        )
-        _front_lidar_ready = {'done': False}
-
-        def _start_back_lidar_once_front_ready(event):
-            # Fires on every stdout line from sweep_scanner_front,
-            # including after a respawn=True restart — only actually
-            # launch the back unit the first time, never again.
-            if _front_lidar_ready['done']:
-                return None
-            text = event.text.decode(errors='replace')
-            if 'starting data acquisition' in text:
-                _front_lidar_ready['done'] = True
-                return [sweep_scanner_back_node]
-            return None
-
-        actions += [
-            Node(
-                package='joint_state_publisher',
-                executable='joint_state_publisher',
-                parameters=[{'robot_description': robot_desc}],
-            ),
-
-            # ── Drive chain ──────────────────────────────────────────────
-            Node(
-                package='guardian_drive',
-                executable='mecanum_kinematics_node',
-                name='mecanum_kinematics_node',
-                parameters=[robot_params],
-            ),
-            Node(
-                package='guardian_drive',
-                executable='phidget_bridge_node',
-                name='phidget_bridge_node',
-                parameters=[robot_params],
-            ),
-            # serial_bridge_node (ESP32-over-USB-serial) is the pre-Phidgets
-            # hardware generation and is no longer wired up here — the robot
-            # doesn't have ESP32 boards anymore. phidget_bridge_node drives
-            # the Phidget DCC1120 controllers directly over VINT/USB and is
-            # a drop-in replacement: same /wheel_rpm in, same /odom out.
-
-            # ── Scanse Sweep LIDARs (front + back) → merged /scan_filtered ──
-            # serial_port uses /dev/lidar_front and /dev/lidar_back, NOT raw
-            # /dev/ttyUSB0/1 — those numbers are assigned by USB enumeration
-            # order and are not guaranteed to stay attached to the same
-            # physical unit across a reboot or replug. /dev/lidar_front and
-            # /dev/lidar_back are stable udev symlinks keyed on each USB
-            # adapter's own serial number — see
-            # 60_scripts/99-guardian-lidar.rules and its README section for
-            # how to identify each unit and set this up on the real robot.
-            #
-            # Topic names ('scan'/'scan_back') deliberately match the sim
-            # branch's raw gz-bridge topic names (/scan, /scan_back) —
-            # one consistent naming convention for both, feeding the same
-            # lidar_republisher_node -> lidar_merger_node pipeline.
-            #
-            # sweep_scanner_back's startup is chained off sweep_scanner_front
-            # actually being ready (RegisterEventHandler below), not a fixed
-            # delay: starting both l3xz_sweep_scanner_node processes at the
-            # same instant segfaults one or both of them — a USB-serial
-            # open/configure race in the underlying libsweep driver. How
-            # long _front takes to reach "starting data acquisition" varies
-            # (seen 5-13s on the bench), so a fixed timer either wastes time
-            # or isn't long enough; waiting for the actual ready line is
-            # both faster on average and more reliable. respawn=True on
-            # both is a safety net for this driver's occasional crash
-            # regardless of startup timing — ros2 launch restarts it rather
-            # than leaving the LIDAR pipeline dead until a manual relaunch.
-            sweep_scanner_front_node,
-            Node(
-                package='guardian_localization',
-                executable='lidar_republisher_node',
-                name='lidar_front_republisher_node',
-                parameters=[{
-                    'input_topic':  '/scan',
-                    'output_topic': '/scan_front_filtered',
-                    'frame_id':     'laser',
-                }, lidar_filter_params],
-            ),
-            Node(
-                package='guardian_localization',
-                executable='lidar_republisher_node',
-                name='lidar_back_republisher_node',
-                parameters=[{
-                    'input_topic':  '/scan_back',
-                    'output_topic': '/scan_back_filtered',
-                    'frame_id':     'laser_back',
-                }, lidar_filter_params],
-            ),
-            Node(
-                package='guardian_localization',
-                executable='lidar_merger_node',
-                name='lidar_merger_node',
-                parameters=[{
-                    'front_input_topic': '/scan_front_filtered',
-                    'back_input_topic':  '/scan_back_filtered',
-                    'output_topic':      '/scan_filtered',
-                    'frame_id':          'base_link',
-                    'front_x': 0.319650, 'front_y': 0.0, 'front_yaw': 0.0,
-                    'back_x': -0.319650, 'back_y': 0.0,
-                    'back_yaw': 3.14159265,
-                }],
-            ),
-
-            # ── Intel RealSense D415 ─────────────────────────────────────
-            # Removed: the pinned realsense-ros release (4.54.1, the
-            # newest tag at the time) hard-rejects ROS_DISTRO=jazzy in its
-            # CMakeLists.txt (Unsupported ROS Distribution error), which
-            # broke every full-workspace colcon build. Re-add once a
-            # Jazzy-compatible realsense-ros release exists upstream.
-        ]
-        # See the comment above sweep_scanner_front_node — starts
-        # sweep_scanner_back the moment _front actually reports ready,
-        # rather than guessing at a fixed delay.
-        actions.append(RegisterEventHandler(OnProcessIO(
-            target_action=sweep_scanner_front_node,
-            on_stdout=_start_back_lidar_once_front_ready,
-            on_stderr=_start_back_lidar_once_front_ready,
-        )))
         nav2_delay = 0.0
 
     # ── rviz:=true only — RViz2 (pure visualization, no effect on nav) ──────

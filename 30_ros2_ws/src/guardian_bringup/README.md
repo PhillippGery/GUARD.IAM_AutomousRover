@@ -14,47 +14,44 @@ None published or subscribed directly — see the launch files below for which p
 
 ## Launch Files
 
-One unified launch file covers every sim/real × mapping/navigation combination —
-the separate `guardian_sim`/`guardian_nav`/`guardian_mapping`/`guardian_real`/
-`guardian_full`/`guardian_teleop` launch files that used to exist here have been
-removed; everything they did is now an argument on `guardian.launch.py`.
-
 | File | Purpose |
 |------|---------|
-| `guardian.launch.py` | Every mode: sim or real hardware, mapping (SLAM) or navigation (AMCL + saved map) |
+| `guardian_hardware.launch.py` | **Real hardware only.** Everything physically attached to the robot: robot/joint state publishers, the drive chain (`mecanum_kinematics_node`, `phidget_bridge_node`), both Sweep LIDARs + republisher/merger chain, and Xbox teleop. No arguments, no mode — always the same, always on. Every node has `respawn=True`, so this is meant to be started once and left running for the whole session; if a USB glitch or flaky LIDAR connector kills a node, `ros2 launch` brings it back on its own. |
+| `guardian.launch.py` | The software stack: Nav2, SLAM (mapping) or AMCL+map_server (navigation), RViz. In sim this is still the single entry point (Gazebo, gz bridge, robot description, and teleop are all included here too, since sim doesn't need the hardware split). On real hardware it launches **none** of the physical robot — it assumes `guardian_hardware.launch.py` is already running separately, so this file can be killed and relaunched freely while iterating on nav2/SLAM params without ever dropping the LIDAR/motor/teleop connections. |
+
+On real hardware, start `guardian_hardware.launch.py` first and leave it running; `guardian.launch.py use_sim:=false ...` on top of it is what you'll actually kill/relaunch while testing.
 
 ```bash
-# Sim, autonomous navigation, RViz open (defaults)
+# Sim, autonomous navigation, RViz open (defaults) — single launch, as before
 ros2 launch guardian_bringup guardian.launch.py
 
-# Real hardware, build a new map (mapping a sim world isn't useful)
-ros2 launch guardian_bringup guardian.launch.py use_sim:=false mode:=mapping
-
-# Real hardware, navigation
-ros2 launch guardian_bringup guardian.launch.py use_sim:=false
+# Real hardware — two terminals:
+ros2 launch guardian_bringup guardian_hardware.launch.py            # once, leave running
+ros2 launch guardian_bringup guardian.launch.py use_sim:=false mode:=mapping    # build a map
+# ...or, once a map exists:
+ros2 launch guardian_bringup guardian.launch.py use_sim:=false                  # navigation
 
 # Headless (no RViz) — e.g. autonomous/unattended startup
-ros2 launch guardian_bringup guardian.launch.py rviz:=false
-
-# Real hardware navigation mode, but without teleop (pure autonomous)
-ros2 launch guardian_bringup guardian.launch.py use_sim:=false teleop:=false
+ros2 launch guardian_bringup guardian.launch.py use_sim:=false rviz:=false
 
 # Sim mapping mode, but with manual teleop override enabled too
 ros2 launch guardian_bringup guardian.launch.py teleop:=true
 ```
 
-Key arguments: `use_sim` (`true`/`false`, default `true`), `mode` (`mapping`/`navigation`,
-default `navigation`), `rviz` (default `true`), `teleop` (`true`/`false` explicitly
-overrides in either mode; left empty it auto-selects: **always on for real
-hardware regardless of mode** — the Xbox controller can override autonomous
-behavior the instant the robot is powered on — and mode-based for sim, on for
-mapping, off for navigation), `map` (map yaml to load in navigation mode), `known_pose`
-(auto: known spawn point in sim, AMCL global localization on real hardware),
-`world`/`spawn_x`/`spawn_y`/`spawn_z` (sim only). See `guardian.launch.py`'s
-`DeclareLaunchArgument` calls for the full list and descriptions.
+Key arguments on `guardian.launch.py`: `use_sim` (`true`/`false`, default `true`),
+`mode` (`mapping`/`navigation`, default `navigation`), `rviz` (default `true`),
+`teleop` (**sim only** — real hardware teleop is always on via
+`guardian_hardware.launch.py`, no flag needed; `true`/`false` explicitly overrides
+in sim, left empty auto-selects mode-based: on for mapping, off for navigation),
+`map` (map yaml to load in navigation mode), `known_pose` (auto: known spawn
+point in sim, AMCL global localization on real hardware), `world`/`spawn_x`/
+`spawn_y`/`spawn_z` (sim only). See `guardian.launch.py`'s `DeclareLaunchArgument`
+calls for the full list and descriptions. `guardian_hardware.launch.py` takes
+no arguments at all.
 
-The aliases in `60_scripts/guardiam_env.sh` (`guardiam_sim`, `guardiam_map`,
-`guardiam_real`) wrap the common cases.
+The aliases in `60_scripts/guardiam_env.sh` (`guardiam_sim`, `guardiam_hw`,
+`guardiam_map`, `guardiam_real`) wrap the common cases — `guardiam_hw` is the
+real-hardware launch, run it first.
 
 ## Xbox Controller Controls
 
@@ -102,5 +99,5 @@ drive faster in the meantime.
 - `behavior_server` must be listed before `bt_navigator` in the `node_names` array of the lifecycle manager config.
 - `autostart: true` in the Nav2 params — the Nav2 lifecycle starts automatically on launch, no manual "Startup" click needed.
 - Depends on `guardian_description`, `guardian_drive`, `guardian_localization`, `guardian_manipulation`, `guardian_navigation`, plus `joy`, `teleop_twist_joy`, `nav2_bringup`, `robot_localization`, `slam_toolbox`, `l3xz_sweep_scanner`, `rviz2`, `xacro`.
-- Teleop is Xbox controller based (`joy` + `teleop_twist_joy`, config in `xbox_teleop.yaml`) — GUARDIAN's own `guardian_teleop` keyboard node is no longer wired into this launch file (kept in the codebase, just unused here).
+- Teleop is Xbox controller based (`joy` + `teleop_twist_joy`, config in `xbox_teleop.yaml`) — GUARDIAN's own `guardian_teleop` keyboard node is no longer wired into either launch file (kept in the codebase, just unused here). On real hardware it's launched unconditionally by `guardian_hardware.launch.py`, always on with no flag to remember.
 - RealSense D415 camera node removed (was `realsense2_camera` in the real-hardware launch branch) — the pinned realsense-ros release doesn't support ROS_DISTRO=jazzy and broke full-workspace builds. Re-add once a Jazzy-compatible release exists upstream.
