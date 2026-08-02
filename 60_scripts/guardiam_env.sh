@@ -41,7 +41,11 @@ alias guardiam_sim='source install/setup.bash && ros2 launch guardian_bringup gu
 alias guardiam_hw='ros2 launch guardian_bringup guardian_hardware.launch.py'
 alias guardiam_map='ros2 launch guardian_bringup guardian.launch.py use_sim:=false mode:=mapping'
 alias guardiam_real='ros2 launch guardian_bringup guardian.launch.py use_sim:=false mode:=navigation'
-alias killros='pkill -9 -f "ros2|gazebo|gzserver|gzclient|rviz2"'
+# Graceful shutdown first (SIGINT to ros2 launch, same as Ctrl+C — lets
+# phidget_bridge_node safely disengage motors and lets the watchdog
+# scripts' SIGINT traps exit cleanly), force-kill only what's still alive
+# after. A blunt `pkill -9` skips all of that — see kill_ros.sh's header.
+alias killros='bash $HOME/GUARD.IAM_AutomousRover/60_scripts/kill_ros.sh'
 alias tf_tree='ros2 run tf2_tools view_frames'
 
 

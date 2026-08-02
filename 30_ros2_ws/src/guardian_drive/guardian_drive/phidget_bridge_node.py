@@ -79,7 +79,7 @@ class PhidgetBridgeNode(Node):
 
         # ── Motion limits / safety ───────────────────────────────────────────
         self.declare_parameter('current_limit', 10.0)       # A. DCC1120 floor is 5A.
-        self.declare_parameter('acceleration', 200.0)       # wheel RPM/s ramp
+        self.declare_parameter('acceleration', 500.0)       # wheel RPM/s ramp
         self.declare_parameter('max_wheel_rpm', 170.0)      # DCM4109 rated output
         self.declare_parameter('command_timeout_sec', 0.3)  # stale cmd -> stop
 
