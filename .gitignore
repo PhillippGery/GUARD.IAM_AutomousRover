@@ -18,6 +18,7 @@ dist/
 *.elf
 *.bin
 
+# CAD — tracked via Git LFS (see .gitattributes)
 # CAD — tracked via Git LFS (STL, STEP, SolidWorks, Fusion 360)
 # Real files are committed through LFS; only temp/backup/lock files ignored here.
 # SolidWorks backups and auto-recover files
