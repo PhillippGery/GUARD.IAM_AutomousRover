@@ -48,6 +48,19 @@ alias guardiam_real='ros2 launch guardian_bringup guardian.launch.py use_sim:=fa
 alias killros='bash $HOME/GUARD.IAM_AutomousRover/60_scripts/kill_ros.sh'
 alias tf_tree='ros2 run tf2_tools view_frames'
 
+# Demo mission (waypoint-to-waypoint, see 30_ros2_ws/src/guardian_bringup/
+# config/waypoints.yaml) — run against an already-running nav stack
+# (guardiam_sim / guardiam_map / guardiam_real), not launched by it.
+alias guardiam_demo='ros2 run guardian_navigation demo_mission_node'
+
+# set_waypoint <index> — drive the robot to where you want waypoint <index>
+# to be, then run this to overwrite that entry in waypoints.yaml with the
+# robot's current map->base_link pose (via set_waypoint_node). A plain
+# alias can't take an argument like this, so it's a function.
+set_waypoint() {
+  ros2 run guardian_navigation set_waypoint_node --ros-args -p index:="$1"
+}
+
 
 
 
