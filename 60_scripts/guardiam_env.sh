@@ -73,6 +73,21 @@ set_waypoint() {
   ros2 run guardian_navigation set_waypoint_node --ros-args -p index:="$1"
 }
 
+# Real-robot deployment (mini PC only — not this dev/lab machine).
+# guardiam_test_boot: install the systemd --user units and start them NOW
+# for testing — hardware, foxglove_bridge, web_ops_node all come up, but
+# nothing is enabled at boot yet and no loginctl enable-linger is run, so
+# a reboot right after this brings nothing back. Verify motors respond,
+# the browser connects, buttons/demo/waypoints all work — THEN run
+# install_services.sh (below) to actually commit to the boot sequence.
+# See 10_docs/setup/real_robot_deployment.md for the full walkthrough.
+alias guardiam_test_boot='bash $HOME/GUARD.IAM_AutomousRover/60_scripts/systemd/test_services.sh'
+# guardiam_install_boot: the real commit — enables all three at boot
+# (systemctl --user enable --now) and runs loginctl enable-linger so they
+# survive a reboot with nobody logged in. Only run this after
+# guardiam_test_boot has already proven everything works.
+alias guardiam_install_boot='bash $HOME/GUARD.IAM_AutomousRover/60_scripts/systemd/install_services.sh'
+
 
 
 
