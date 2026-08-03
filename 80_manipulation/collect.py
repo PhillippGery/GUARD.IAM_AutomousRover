@@ -45,13 +45,13 @@ except Exception:                       # pragma: no cover
     _pk = None
 
 # ── Settings ───────────────────────────────────────────────────────────────────
-NUM_EPISODES =  50               # real collection
+NUM_EPISODES =  30               # batch 3
 EPISODE_TIME_SEC = 60                     # give yourself time — right arrow ends early
-RESET_TIME_SEC = 20                       # time to reset the scene between episodes
+RESET_TIME_SEC = 0                        # reset skipped entirely — see gate below
 PAUSE_EVERY = 10                          # auto-pause for a break every N kept episodes
                                           # (0 disables auto-pause). SPACEBAR (or the
                                           # center pedal) also pauses between episodes.
-REPO_ID = "guardian_strawberry_pick"   # real dataset
+REPO_ID = "guardian_strawberry_pick_batch3"   # real dataset, batch 3
                                           # different id (e.g. guardian_practice)
 TASK = "Pick up the strawberry and place it in the bin"
 
@@ -247,8 +247,9 @@ while episode_idx < NUM_EPISODES and not stop:
             stop = True
             break
 
-    # Scene reset between kept episodes (skip after the last one).
-    if episode_idx < NUM_EPISODES:
+    # Scene reset between kept episodes (skip after the last one, and skip
+    # entirely if RESET_TIME_SEC is 0 — no pause between episodes at all).
+    if episode_idx < NUM_EPISODES and RESET_TIME_SEC > 0:
         print(f"[RESET] {RESET_TIME_SEC}s — reset the scene to a fresh start.", flush=True)
         log_say("Reset the scene", blocking=True)
         events["exit_early"] = False
