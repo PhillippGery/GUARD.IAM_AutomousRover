@@ -53,6 +53,18 @@ alias tf_tree='ros2 run tf2_tools view_frames'
 # (guardiam_sim / guardiam_map / guardiam_real), not launched by it.
 alias guardiam_demo='ros2 run guardian_navigation demo_mission_node'
 
+# Sim nav stack + foxglove_bridge together, RViz off — the browser-control
+# testing path. Optional arg: mode (mapping/navigation), default mapping.
+# e.g. `guardiam_sim_foxglove` or `guardiam_sim_foxglove navigation`.
+alias guardiam_sim_foxglove='bash $HOME/GUARD.IAM_AutomousRover/60_scripts/run_sim_foxglove.sh'
+
+# The other browser-control path: foxglove_bridge + web_ops_node only, no
+# stack. Use the 🗺️/🧭/💾 buttons in Foxglove to start/stop the stack from
+# there instead. Don't run this AND guardiam_sim_foxglove at the same
+# time — both can start Gazebo, and running both is how you end up with
+# duplicate instances fighting each other.
+alias guardiam_web='bash $HOME/GUARD.IAM_AutomousRover/60_scripts/run_web_control.sh'
+
 # set_waypoint <index> — drive the robot to where you want waypoint <index>
 # to be, then run this to overwrite that entry in waypoints.yaml with the
 # robot's current map->base_link pose (via set_waypoint_node). A plain

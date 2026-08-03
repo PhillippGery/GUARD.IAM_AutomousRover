@@ -1,0 +1,14 @@
+[Unit]
+Description=GUARDIAN nav stack (Nav2 + SLAM/AMCL), mode=%i
+# Not started at boot (no [Install]/WantedBy) — web_ops_node starts the
+# instance it wants (mapping or navigation) on request, via
+# `systemctl --user start guardian-stack@<mode>.service`. Assumes
+# guardian-hardware.service is already running (for /odom, /scan_filtered,
+# TF) — see guardian.launch.py's own header for that split.
+After=guardian-hardware.service
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -c 'source %h/GUARD.IAM_AutomousRover/60_scripts/guardiam_env.sh && exec ros2 launch guardian_bringup guardian.launch.py use_sim:=false mode:=%i rviz:=false'
+Restart=on-failure
+RestartSec=3

@@ -1,9 +1,22 @@
-# GUARDIAN demo mission waypoints — map frame, x/y in meters, yaw in radians.
-# Consumed in order by demo_mission_node. Edit by hand, or record one live:
-# drive the robot to the spot, then run `set_waypoint <index>` (see
-# guardiam_env.sh) to overwrite that entry with the robot's current
-# map->base_link pose. set_waypoint_node rewrites this whole file when it
-# does that, so hand-added comments below the `waypoints:` key won't survive.
 waypoints:
-  - {x: 3.0, y: 0.0, yaw: 0.0}
-  - {x: 0.0, y: 0.0, yaw: 0.0}
+- x: -0.0028
+  y: -0.0051
+  yaw: -0.0138
+- x: -0.9415
+  y: -3.3005
+  yaw: 1.1106
+- x: 0.0
+  y: 0.0
+  yaw: 0.0
+- x: -0.0071
+  y: 0.0011
+  yaw: -0.0101
+- x: 0.0
+  y: 0.0
+  yaw: 0.0
+- x: -0.8662
+  y: -1.5979
+  yaw: 0.191
+- x: 1.1361
+  y: -0.9028
+  yaw: -0.2719

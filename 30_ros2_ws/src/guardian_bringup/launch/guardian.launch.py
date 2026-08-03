@@ -4,35 +4,35 @@
 # Purpose: the software stack — Nav2, SLAM/AMCL, RViz — for sim or real
 #          hardware. On real hardware (use_sim:=false) this assumes
 #          guardian_hardware.launch.py is ALREADY running separately,
-#          providing the drive chain, both LIDARs, and Xbox teleop — this
-#          file no longer launches any of that itself, so it can be killed
-#          and relaunched freely while iterating on nav2/SLAM params without
-#          ever dropping the hardware connections. In sim, this file is
-#          still the single entry point (Gazebo, gz bridge, robot
-#          description, teleop all included) — sim doesn't need the split
-#          since it isn't subject to the same real-hardware flakiness.
+#          providing the drive chain, both LIDARs, and Xbox teleop. In sim
+#          (use_sim:=true), it's the same split via guardian_sim.launch.py
+#          — include_sim_env:=true (default) brings that up here too for
+#          one-shot convenience (guardiam_sim), or include_sim_env:=false
+#          assumes it's already running separately, e.g. so the mode-switch
+#          buttons in the browser control interface can restart just the
+#          nav stack without resetting Gazebo/robot/clock underneath it.
+#          Either way, this file itself can be killed and relaunched freely
+#          while iterating on nav2/SLAM params without ever dropping the
+#          environment/hardware connections underneath it.
 #
 #   use_sim:=true/false   — Gazebo simulation vs real hardware (see above)
 #   mode:=mapping/navigation — SLAM Toolbox live mapping vs AMCL on a saved map
 
 import os
 
-import xacro
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import (DeclareLaunchArgument, ExecuteProcess,
                              IncludeLaunchDescription, OpaqueFunction,
-                             RegisterEventHandler, TimerAction)
-from launch.event_handlers import OnProcessIO
+                             TimerAction)
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node, SetParameter
 
 
 def launch_setup(context, *args, **kwargs):
-    bringup_dir     = get_package_share_directory('guardian_bringup')
-    description_dir = get_package_share_directory('guardian_description')
-    slam_dir        = get_package_share_directory('slam_toolbox')
+    bringup_dir = get_package_share_directory('guardian_bringup')
+    slam_dir    = get_package_share_directory('slam_toolbox')
 
     nav2_params       = os.path.join(bringup_dir, 'config', 'nav2_params.yaml')
     slam_params       = os.path.join(bringup_dir, 'config', 'slam_params.yaml')
@@ -43,6 +43,7 @@ def launch_setup(context, *args, **kwargs):
     mode     = LaunchConfiguration('mode').perform(context).lower()
     map_yaml = LaunchConfiguration('map').perform(context)
     rviz     = LaunchConfiguration('rviz').perform(context).lower() == 'true'
+    include_sim_env = LaunchConfiguration('include_sim_env').perform(context).lower() == 'true'
 
     # teleop is sim-only here — on real hardware it's always on, owned
     # entirely by guardian_hardware.launch.py (no flag needed, it's just
@@ -81,16 +82,6 @@ def launch_setup(context, *args, **kwargs):
     activate_lifecycle_node = os.path.join(
         bringup_dir, 'scripts', 'activate_lifecycle_node.sh')
 
-    # One shared xacro file for sim and real — its <gazebo> blocks
-    # (MecanumDrive plugin, gpu_lidar sensors) are only ever acted on by
-    # Gazebo; robot_state_publisher and RViz safely ignore them otherwise,
-    # so there's no need to conditionally strip them for real hardware.
-    # Two near-duplicate files used to exist here; the real-hardware copy
-    # silently never got any of the CAD-mesh/dual-LIDAR updates made to
-    # the sim copy.
-    xacro_file = os.path.join(description_dir, 'urdf', 'guardian.urdf.xacro')
-    robot_desc = xacro.process_file(xacro_file).toxml()
-
     actions = [
         # Global use_sim_time for every node launched below (real hardware
         # still needs this explicitly False — no /clock source without sim).
@@ -99,117 +90,65 @@ def launch_setup(context, *args, **kwargs):
 
     # ── use_sim:=true — Gazebo + gz bridge ──────────────────────────────────
     if use_sim:
-        # robot_state_publisher lives here (sim only) — on real hardware
-        # it's owned by guardian_hardware.launch.py instead, which must be
-        # running alongside this file (see that launch file's header).
-        actions.append(Node(
-            package='robot_state_publisher',
-            executable='robot_state_publisher',
-            parameters=[{'robot_description': robot_desc}, use_sim_time],
+        # Nav2's own stale processes need clearing regardless of whether
+        # the sim environment itself is included here or running
+        # separately — this is about killing leftover Nav2 core from a
+        # previous run, not about the sim environment.
+        actions.append(ExecuteProcess(
+            cmd=['bash', '-c',
+                 'pkill -9 -f "controller_server|planner_server|bt_navigator|'
+                 'behavior_server|smoother_server|waypoint_follower|'
+                 'velocity_smoother|lifecycle_manager|async_slam_toolbox|'
+                 'amcl|map_server" || true'],
+            output='screen',
         ))
-        gz_sim_dir = get_package_share_directory('ros_gz_sim')
-        world_file = (world_arg if world_arg else
-                      os.path.join(description_dir, 'worlds', 'guardian_world.sdf'))
 
-        actions += [
-            ExecuteProcess(
-                cmd=['bash', '-c',
-                     'pkill -9 -f "controller_server|planner_server|bt_navigator|'
-                     'behavior_server|smoother_server|waypoint_follower|'
-                     'velocity_smoother|lifecycle_manager|async_slam_toolbox|'
-                     'amcl|map_server" || true'],
-                output='screen',
-            ),
-            IncludeLaunchDescription(
+        if include_sim_env:
+            # Self-contained one-shot convenience path (guardiam_sim /
+            # guardiam_sim_foxglove) — no separately-running environment to
+            # assume, so bring up Gazebo/robot/bridge/lidar-merge here.
+            actions.append(IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(
-                    os.path.join(gz_sim_dir, 'launch', 'gz_sim.launch.py')
+                    os.path.join(bringup_dir, 'launch', 'guardian_sim.launch.py')
                 ),
-                launch_arguments={'gz_args': f'-r {world_file}'}.items(),
-            ),
-            TimerAction(period=3.0, actions=[
-                Node(
-                    package='ros_gz_sim',
-                    executable='create',
-                    arguments=['-name', 'guardian', '-string', robot_desc,
-                               '-x', spawn_x, '-y', spawn_y, '-z', spawn_z],
-                    output='screen',
-                ),
-            ]),
-            TimerAction(period=4.0, actions=[
-                Node(
-                    package='ros_gz_bridge',
-                    executable='parameter_bridge',
-                    name='gz_bridge',
-                    arguments=[
-                        # GZ-side sensor topic is hardcoded '/scan' in
-                        # guardian.urdf.xacro's lidar macro; parameter_bridge's
-                        # simple CLI form requires the same name on both sides, so
-                        # this stays '/scan' and gets relayed to
-                        # '/scan_filtered' below via lidar_republisher_node.
-                        '/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
-                        '/scan_back@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
-                        '/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist',
-                        '/odom@nav_msgs/msg/Odometry[gz.msgs.Odometry',
-                        '/tf@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V',
-                        '/joint_states@sensor_msgs/msg/JointState[gz.msgs.Model',
-                        '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
-                    ],
-                    parameters=[use_sim_time],
-                    output='screen',
-                ),
-            ]),
-            TimerAction(period=4.5, actions=[
-                # Each raw sensor topic gets frame-fixed (and, later,
-                # self-occlusion masked via mask_angle_ranges) on its own
-                # intermediate topic before merging — masking must happen
-                # per-sensor, in that sensor's own angle_min/max frame,
-                # not after re-binning into the merged scan.
-                Node(
-                    package='guardian_localization',
-                    executable='lidar_republisher_node',
-                    name='lidar_front_republisher_node',
-                    parameters=[{
-                        'input_topic':  '/scan',
-                        'output_topic': '/scan_front_filtered',
-                        'frame_id':     'laser',
-                    }, lidar_filter_params, use_sim_time],
-                ),
-                Node(
-                    package='guardian_localization',
-                    executable='lidar_republisher_node',
-                    name='lidar_back_republisher_node',
-                    parameters=[{
-                        'input_topic':  '/scan_back',
-                        'output_topic': '/scan_back_filtered',
-                        'frame_id':     'laser_back',
-                    }, lidar_filter_params, use_sim_time],
-                ),
-            ]),
-            TimerAction(period=5.0, actions=[
-                # Combines both filtered scans into one virtual 360° scan
-                # on /scan_filtered — the topic Nav2/SLAM actually consume.
-                # front_x/y/yaw and back_x/y/yaw must match the `lidar`
-                # xacro macro instantiations in guardian.urdf.xacro
-                # (lidar_front_*/lidar_back_* come from dimensions.xacro,
-                # auto-generated off the CAD — update these to match if
-                # that ever changes).
-                Node(
-                    package='guardian_localization',
-                    executable='lidar_merger_node',
-                    name='lidar_merger_node',
-                    parameters=[{
-                        'front_input_topic': '/scan_front_filtered',
-                        'back_input_topic':  '/scan_back_filtered',
-                        'output_topic':      '/scan_filtered',
-                        'frame_id':          'base_link',
-                        'front_x': 0.319650, 'front_y': 0.0, 'front_yaw': 0.0,
-                        'back_x': -0.319650, 'back_y': 0.0,
-                        'back_yaw': 3.14159265,
-                    }, use_sim_time],
-                ),
-            ]),
-        ]
-        nav2_delay = 8.0
+                launch_arguments={
+                    'world': world_arg, 'spawn_x': spawn_x,
+                    'spawn_y': spawn_y, 'spawn_z': spawn_z,
+                }.items(),
+            ))
+            nav2_delay = 8.0
+        else:
+            # include_sim_env:=false — guardian_sim.launch.py is assumed to
+            # already be running separately (started once, left running
+            # across mode switches). This is what the mode-switch buttons
+            # use: restarting the whole sim environment on every mode
+            # switch reset /clock back near zero and respawned the robot
+            # at the origin each time, which made Foxglove's (and RViz's)
+            # TF buffer treat the "new" but earlier-than-previously-seen
+            # transforms as stale and drop them — the rendered robot pose
+            # visibly froze and the URDF mesh stopped updating even though
+            # data was still flowing underneath. Keeping the environment
+            # running avoids the discontinuity entirely.
+            #
+            # Not 0.0: the pkill ExecuteProcess above and this delay's
+            # Nav2 TimerAction are both just appended to the same launch
+            # actions list, which ros2 launch schedules concurrently, not
+            # sequentially — a period of 0.0 gave the pkill zero
+            # guaranteed head start. Confirmed happening live: pkill's
+            # process-name-pattern scan (controller_server|planner_server
+            # |...) sometimes still caught the *freshly spawned*
+            # controller_server/planner_server/smoother_server from this
+            # exact launch and killed them (exit code -9) within the same
+            # second they started, which then left
+            # lifecycle_manager_navigation stuck forever on "Waiting for
+            # service controller_server/get_state..." — Nav2 silently up
+            # but never actually able to drive the robot. Worse under
+            # memory pressure (a loaded pkill/proc scan takes longer),
+            # which is exactly the condition this system was under when
+            # it was caught. 1.5s is comfortably more than pkill -9 -f
+            # ever needs even under load; still near-instant for a mode
+            # switch compared to the 8.0s full-sim-env path above.
+            nav2_delay = 1.5
 
     # ── use_sim:=false — real hardware ───────────────────────────────────────
     # Nothing physical is launched here anymore — robot_state_publisher,
@@ -274,6 +213,20 @@ def launch_setup(context, *args, **kwargs):
                      'planner_server', 'behavior_server',
                      'bt_navigator', 'waypoint_follower',
                      'velocity_smoother']}]),
+        # Re-publishes NavigateToPose's action feedback (distance_remaining,
+        # estimated_time_remaining — Nav2 already computes both) as a plain
+        # /guardian/nav_status String, since action feedback topics are
+        # hidden by default and awkward to add as a Foxglove panel
+        # directly. Depends on bt_navigator's action server existing, so
+        # it belongs in this same TimerAction alongside it.
+        Node(package='guardian_navigation', executable='nav_status_node',
+             name='nav_status_node', parameters=[use_sim_time]),
+        # Persistent listener mode (no 'index' param passed) — see the
+        # node's own docstring. Lets the browser control interface record
+        # waypoints the same way `set_waypoint <index>` already does from
+        # a terminal, without needing a fresh `ros2 run` per waypoint.
+        Node(package='guardian_navigation', executable='set_waypoint_node',
+             name='set_waypoint_node', parameters=[use_sim_time]),
     ]))
 
     # ── mode:=mapping — SLAM Toolbox live mapping ───────────────────────────
@@ -484,6 +437,15 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'spawn_z', default_value='0.15',
             description='Gazebo spawn z (use_sim only)'),
+        DeclareLaunchArgument(
+            'include_sim_env', default_value='true',
+            description='use_sim only. true (default): bring up Gazebo/'
+                         'robot/bridge/lidar-merge here too (one-shot '
+                         'convenience, e.g. guardiam_sim). false: assume '
+                         'guardian_sim.launch.py is already running '
+                         'separately — used when switching Nav2 mode '
+                         'on demand, so the sim environment (and /clock) '
+                         "doesn't restart on every switch."),
         DeclareLaunchArgument(
             'teleop', default_value='',
             description="'true'/'false' — launch Xbox controller teleop "
