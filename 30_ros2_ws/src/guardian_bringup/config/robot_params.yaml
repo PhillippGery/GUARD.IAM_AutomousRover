@@ -54,7 +54,7 @@ phidget_bridge_node:
     # VINT hub port per wheel, order [FL, FR, BL, BR].
     # -1 = not wired (that wheel is skipped, node still runs) — handy for
     # bringing wheels up one at a time.
-    wheel_hub_ports: [0, 5, 2, 3]
+    wheel_hub_ports: [0, 5, 1, 4]
 
     # Per-wheel sign so +RPM drives that corner forward.
     # Left and right motors are mirror-mounted, so they take opposite signs.

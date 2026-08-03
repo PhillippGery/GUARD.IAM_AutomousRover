@@ -7,7 +7,11 @@ slam_toolbox:
     ceres_preconditioner: SCHUR_JACOBI
     ceres_trust_strategy: LEVENBERG_MARQUARDT
     ceres_dogleg_type: TRADITIONAL_DOGLEG
-    ceres_loss_function: None
+    # HuberLoss down-weights high-residual scan matches instead of letting
+    # them pull the optimizer fully — a single noisy/outlier real-hardware
+    # scan (real Sweep data is far noisier and sparser than sim) shouldn't
+    # be able to yank the trajectory estimate as hard as a good one.
+    ceres_loss_function: HuberLoss
     odom_frame: odom
     map_frame: map
     base_frame: base_link
@@ -19,5 +23,76 @@ slam_toolbox:
     map_update_interval: 5.0
     resolution: 0.05
     max_laser_range: 20.0
-    minimum_travel_distance: 0.0
-    minimum_travel_heading: 0.0
+    # An earlier root-cause misdiagnosis blamed any nonzero value here for
+    # /map never publishing — that was wrong. The actual cause was
+    # lidar_merger_node refusing to publish /scan_filtered at all until
+    # BOTH sensors had reported at least once (now fixed to degrade
+    # gracefully to single-sensor). With that fixed, a small nonzero
+    # threshold is safe again and is what it's for: without it, SLAM
+    # re-matches against every single scan even with zero real motion, and
+    # on noisy real-hardware data that lets sensor noise alone wander the
+    # pose estimate — exactly the "phantom wall" smearing this is meant to
+    # reduce (the same real wall getting recorded at several slightly
+    # different positions because the pose estimate wobbled between
+    # scans, not because the robot moved).
+    minimum_travel_distance: 0.05
+    minimum_travel_heading: 0.05
+    # Root cause of "/map exists but every cell stays unknown": with the
+    # robot genuinely stationary (real odom pinned at exactly 0,0,0 — bench
+    # testing, or a confined-space robot paused/waiting), the two thresholds
+    # above never trip, so the pose graph freezes at its very first scan
+    # node and never gets a second one. min_pass_through below then requires
+    # 2 independent hits on a cell before it renders as occupied — which a
+    # 1-scan graph can never produce, so nothing ever leaves "unknown"
+    # (confirmed: a live /map pull showed 14352/14364 cells at -1, 0 cells
+    # occupied). minimum_time_interval forces a scan through regardless of
+    # measured travel, so the graph keeps growing during a stationary pause
+    # too. 1.0s is well below the ~10Hz scan rate (so it doesn't reopen the
+    # "re-match every noisy raw scan" smearing problem minimum_travel_*
+    # exists to prevent) but frequent enough that min_pass_through's 2-hit
+    # requirement gets satisfied within a couple seconds instead of never.
+    minimum_time_interval: 1.0
+
+    # ── Scan matching / phantom-wall reduction ──────────────────────────
+    # First pass tried min_pass_through:3 and tighter angle/distance
+    # penalties (0.95/0.6) — too strict for real, sparse, single-sensor
+    # data: it would accept an initial map but then couldn't confidently
+    # accept further matches, so mapping visibly stalled instead of
+    # growing. Back to stock defaults; phantom-wall reduction instead
+    # comes from minimum_travel_distance/heading above (stops re-matching
+    # noise while stationary) and the HuberLoss change, both of which
+    # don't have this stalling failure mode.
+    min_pass_through: 2
+    occupancy_threshold: 0.1
+    minimum_angle_penalty: 0.9
+    minimum_distance_penalty: 0.5
+    use_response_expansion: true
+    distance_variance_penalty: 0.5
+    angle_variance_penalty: 1.0
+
+    # ── Loop closure — corrects accumulated drift when revisiting a
+    # previously-mapped area, which is what actually keeps phantom
+    # double-walls from appearing over a longer mapping run rather than
+    # just for one short pass. Stock defaults, made explicit rather than
+    # relying on whatever slam_toolbox's own compiled-in fallback is.
+    do_loop_closing: true
+    loop_search_maximum_distance: 3.0
+    loop_match_minimum_chain_size: 10
+    loop_match_maximum_variance_coarse: 3.0
+    loop_match_minimum_response_coarse: 0.35
+    loop_match_minimum_response_fine: 0.45
+    loop_search_space_dimension: 8.0
+    loop_search_space_resolution: 0.05
+    loop_search_space_smear_deviation: 0.03
+
+    # ── Correlation search — how precisely each new scan is matched
+    # against the existing map. Stock defaults, made explicit.
+    correlation_search_space_dimension: 0.5
+    correlation_search_space_resolution: 0.01
+    correlation_search_space_smear_deviation: 0.1
+    use_scan_matching: true
+    use_scan_barycenter: true
+    link_match_minimum_response_fine: 0.1
+    link_scan_maximum_distance: 1.5
+    scan_buffer_size: 10
+    scan_buffer_maximum_scan_distance: 10.0

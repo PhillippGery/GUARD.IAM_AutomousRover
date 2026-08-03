@@ -9,7 +9,13 @@
 # loading whatever old map was last built into install/.
 set -e
 MAP_NAME=${1:-guardian_map}
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# readlink -f resolves the symlink chain first — this script is invoked
+# both directly from source and via its colcon --symlink-install'd copy
+# under install/share/ (e.g. from web_ops_node, which locates it through
+# get_package_share_directory()); without resolving symlinks first,
+# dirname would land inside install/guardian_bringup/ when invoked that
+# way, and the WS_DIR math below would cd into the wrong place entirely.
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 SRC_MAPS_DIR="$SCRIPT_DIR/../maps"
 MAP_PATH="$SRC_MAPS_DIR/$MAP_NAME"
 echo "Saving map to: $MAP_PATH"

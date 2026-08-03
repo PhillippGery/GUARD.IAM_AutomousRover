@@ -1,0 +1,12 @@
+[Unit]
+Description=GUARDIAN web_ops_node — mode-switch/save-map services for Foxglove
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -c 'source %h/GUARD.IAM_AutomousRover/60_scripts/guardiam_env.sh && exec ros2 run guardian_navigation web_ops_node'
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

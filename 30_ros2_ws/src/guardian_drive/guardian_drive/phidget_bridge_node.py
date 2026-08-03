@@ -79,7 +79,7 @@ class PhidgetBridgeNode(Node):
 
         # ── Motion limits / safety ───────────────────────────────────────────
         self.declare_parameter('current_limit', 10.0)       # A. DCC1120 floor is 5A.
-        self.declare_parameter('acceleration', 200.0)       # wheel RPM/s ramp
+        self.declare_parameter('acceleration', 500.0)       # wheel RPM/s ramp
         self.declare_parameter('max_wheel_rpm', 170.0)      # DCM4109 rated output
         self.declare_parameter('command_timeout_sec', 0.3)  # stale cmd -> stop
 
@@ -117,6 +117,12 @@ class PhidgetBridgeNode(Node):
         self._base_frame = p('base_frame').value
 
         # ── Startup scan ─────────────────────────────────────────────────────
+        # _reattach_logged tracks whether the "missing" state for a wheel has
+        # already been logged, so the periodic retry timer below doesn't
+        # spam an identical error every cycle while a wheel is genuinely
+        # still disconnected — only real state changes (missing -> found,
+        # found -> missing) get logged.
+        self._reattach_logged = [False] * 4
         self._motors = [self._open_motor(i) for i in range(4)]
 
         live = [WHEEL_NAMES[i] for i in range(4) if self._motors[i] is not None]
@@ -131,6 +137,8 @@ class PhidgetBridgeNode(Node):
             self.get_logger().error(
                 f'Wheels CONFIGURED BUT NOT FOUND: {missing}. '
                 'Check 24V power and VINT cabling for those ports.')
+            for i in missing:
+                self._reattach_logged[WHEEL_NAMES.index(i)] = True
         if not live:
             self.get_logger().error(
                 'No controllers attached — node is up but will not move anything.')
@@ -155,13 +163,20 @@ class PhidgetBridgeNode(Node):
             self.create_timer(1.0 / float(p('odom_rate_hz').value), self._odom_timer)
 
         self.create_timer(0.05, self._watchdog)  # 20 Hz
+        # Per-motor reattach retry — see _reattach_missing_motors for why
+        # this exists instead of relying on respawn=True/an external
+        # watchdog: only ONE of four independent channels typically fails
+        # (a single loose VINT cable, or one channel losing its Phidget22
+        # attachment mid-session), and killing/respawning the whole node
+        # would needlessly also bounce the three wheels already working.
+        self.create_timer(5.0, self._reattach_missing_motors)
 
         self.get_logger().info(
             f'phidget_bridge_node started (odom={self._publish_odom}, '
             f'tf={self._publish_tf})')
 
     # ── Setup ────────────────────────────────────────────────────────────────
-    def _open_motor(self, index):
+    def _open_motor(self, index, quiet=False):
         name = WHEEL_NAMES[index]
         port = self._ports[index]
         if port is None or port < 0:
@@ -176,16 +191,38 @@ class PhidgetBridgeNode(Node):
         try:
             ch.openWaitForAttachment(self._attach_timeout)
         except PhidgetException as e:
-            self.get_logger().error(
-                f'{name}: no controller on hub port {port} ({e.details})')
+            if not quiet:
+                self.get_logger().error(
+                    f'{name}: no controller on hub port {port} ({e.details})')
             return None
 
         try:
+            # Confirmed live: a reattaching motor can be found already
+            # spinning with nobody commanding it. The DCC1120 board itself
+            # is powered continuously off the 24V rail via the VINT hub —
+            # only its USB/VINT COMMUNICATION link drops on a detach, not
+            # its power — so the board's own engaged/target state isn't
+            # guaranteed to reset just because we lost and regained the
+            # connection. Disengage FIRST, before touching anything else,
+            # so the motor is guaranteed unable to actively drive for the
+            # entire rest of setup; only zero the target and re-engage as
+            # the last two steps, in that order, once everything else is
+            # confirmed configured.
+            ch.setEngaged(False)
             ch.setRescaleFactor(self._rescale)
             ch.setCurrentLimit(self._current_limit)
             ch.setAcceleration(self._accel)
             ch.setTargetVelocity(0.0)
             ch.setEngaged(True)  # REQUIRED — otherwise it freewheels
+            # Phidget22's own disconnect event (base Phidget class, not
+            # MotorVelocityController-specific) — catches a mid-session
+            # physical disconnect (cable worked loose, USB/VINT bus glitch)
+            # immediately, rather than only finding out the next time a
+            # command happens to throw. Just clears the slot; the periodic
+            # _reattach_missing_motors timer picks it back up from there,
+            # same path as a wheel that was never found at startup.
+            ch.setOnDetachHandler(
+                lambda _ch, i=index, n=name: self._on_motor_detached(i, n))
         except PhidgetException as e:
             self.get_logger().error(f'{name}: config failed ({e.details})')
             try:
@@ -196,6 +233,26 @@ class PhidgetBridgeNode(Node):
 
         self.get_logger().info(f'{name}: ready on hub port {port}')
         return ch
+
+    def _on_motor_detached(self, index, name):
+        # Fires on Phidget22's own event thread, not the ROS executor —
+        # kept to a single list assignment (atomic under the GIL) plus a
+        # log call, nothing that touches hardware or needs a lock.
+        self.get_logger().warn(f'{name}: detached — will retry attaching')
+        self._motors[index] = None
+        self._reattach_logged[index] = True  # already logged, don't repeat
+
+    def _reattach_missing_motors(self):
+        for i in range(4):
+            if self._ports[i] < 0 or self._motors[i] is not None:
+                continue  # not wired, or already attached — nothing to do
+            motor = self._open_motor(i, quiet=self._reattach_logged[i])
+            if motor is not None:
+                self._motors[i] = motor
+                self._reattach_logged[i] = False
+                self.get_logger().info(f'{WHEEL_NAMES[i]}: reattached')
+            else:
+                self._reattach_logged[i] = True
 
     # ── Commands ─────────────────────────────────────────────────────────────
     def _wheel_rpm_callback(self, msg: Float32MultiArray):

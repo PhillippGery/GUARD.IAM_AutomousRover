@@ -22,6 +22,9 @@ setup(
         'console_scripts': [
             'demo_mission_node = guardian_navigation.demo_mission_node:main',
             'localization_bootstrap_node = guardian_navigation.localization_bootstrap_node:main',
+            'nav_status_node = guardian_navigation.nav_status_node:main',
+            'set_waypoint_node = guardian_navigation.set_waypoint_node:main',
+            'web_ops_node = guardian_navigation.web_ops_node:main',
         ],
     },
 )

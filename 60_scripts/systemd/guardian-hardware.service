@@ -1,0 +1,12 @@
+[Unit]
+Description=GUARDIAN real-hardware bring-up (drive chain + LIDARs)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -c 'source %h/GUARD.IAM_AutomousRover/60_scripts/guardiam_env.sh && exec ros2 launch guardian_bringup guardian_hardware.launch.py'
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

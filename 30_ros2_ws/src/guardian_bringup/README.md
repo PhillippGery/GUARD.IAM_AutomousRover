@@ -14,54 +14,82 @@ None published or subscribed directly — see the launch files below for which p
 
 ## Launch Files
 
-One unified launch file covers every sim/real × mapping/navigation combination —
-the separate `guardian_sim`/`guardian_nav`/`guardian_mapping`/`guardian_real`/
-`guardian_full`/`guardian_teleop` launch files that used to exist here have been
-removed; everything they did is now an argument on `guardian.launch.py`.
-
 | File | Purpose |
 |------|---------|
-| `guardian.launch.py` | Every mode: sim or real hardware, mapping (SLAM) or navigation (AMCL + saved map) |
+| `guardian_hardware.launch.py` | **Real hardware only.** Everything physically attached to the robot: robot/joint state publishers, the drive chain (`mecanum_kinematics_node`, `phidget_bridge_node`), both Sweep LIDARs + republisher/merger chain, and Xbox teleop. No arguments, no mode — always the same, always on. Every node has `respawn=True`, so this is meant to be started once and left running for the whole session; if a USB glitch or flaky LIDAR connector kills a node, `ros2 launch` brings it back on its own. |
+| `guardian.launch.py` | The software stack: Nav2, SLAM (mapping) or AMCL+map_server (navigation), RViz. In sim this is still the single entry point (Gazebo, gz bridge, robot description, and teleop are all included here too, since sim doesn't need the hardware split). On real hardware it launches **none** of the physical robot — it assumes `guardian_hardware.launch.py` is already running separately, so this file can be killed and relaunched freely while iterating on nav2/SLAM params without ever dropping the LIDAR/motor/teleop connections. |
+
+On real hardware, start `guardian_hardware.launch.py` first and leave it running; `guardian.launch.py use_sim:=false ...` on top of it is what you'll actually kill/relaunch while testing.
 
 ```bash
-# Sim, autonomous navigation, RViz open (defaults)
+# Sim, autonomous navigation, RViz open (defaults) — single launch, as before
 ros2 launch guardian_bringup guardian.launch.py
 
-# Real hardware, build a new map (mapping a sim world isn't useful)
-ros2 launch guardian_bringup guardian.launch.py use_sim:=false mode:=mapping
-
-# Real hardware, navigation
-ros2 launch guardian_bringup guardian.launch.py use_sim:=false
+# Real hardware — two terminals:
+ros2 launch guardian_bringup guardian_hardware.launch.py            # once, leave running
+ros2 launch guardian_bringup guardian.launch.py use_sim:=false mode:=mapping    # build a map
+# ...or, once a map exists:
+ros2 launch guardian_bringup guardian.launch.py use_sim:=false                  # navigation
 
 # Headless (no RViz) — e.g. autonomous/unattended startup
-ros2 launch guardian_bringup guardian.launch.py rviz:=false
+ros2 launch guardian_bringup guardian.launch.py use_sim:=false rviz:=false
 
-# Navigation mode, but with manual teleop override enabled too
-ros2 launch guardian_bringup guardian.launch.py use_sim:=false teleop:=true
-
-# Mapping mode, but without teleop (pure autonomous SLAM exploration)
-ros2 launch guardian_bringup guardian.launch.py use_sim:=false mode:=mapping teleop:=false
+# Sim mapping mode, but with manual teleop override enabled too
+ros2 launch guardian_bringup guardian.launch.py teleop:=true
 ```
 
-Key arguments: `use_sim` (`true`/`false`, default `true`), `mode` (`mapping`/`navigation`,
-default `navigation`), `rviz` (default `true`), `teleop` (`true`/`false` explicitly
-overrides in either mode; left empty it auto-selects: on for mapping, off for
-navigation), `map` (map yaml to load in navigation mode), `known_pose`
-(auto: known spawn point in sim, AMCL global localization on real hardware),
-`world`/`spawn_x`/`spawn_y`/`spawn_z` (sim only). See `guardian.launch.py`'s
-`DeclareLaunchArgument` calls for the full list and descriptions.
+Key arguments on `guardian.launch.py`: `use_sim` (`true`/`false`, default `true`),
+`mode` (`mapping`/`navigation`, default `navigation`), `rviz` (default `true`),
+`teleop` (**sim only** — real hardware teleop is always on via
+`guardian_hardware.launch.py`, no flag needed; `true`/`false` explicitly overrides
+in sim, left empty auto-selects mode-based: on for mapping, off for navigation),
+`map` (map yaml to load in navigation mode), `known_pose` (auto: known spawn
+point in sim, AMCL global localization on real hardware), `world`/`spawn_x`/
+`spawn_y`/`spawn_z` (sim only). See `guardian.launch.py`'s `DeclareLaunchArgument`
+calls for the full list and descriptions. `guardian_hardware.launch.py` takes
+no arguments at all.
 
-The aliases in `60_scripts/guardiam_env.sh` (`guardiam_sim`, `guardiam_map`,
-`guardiam_real`) wrap the common cases.
+The aliases in `60_scripts/guardiam_env.sh` (`guardiam_sim`, `guardiam_hw`,
+`guardiam_map`, `guardiam_real`) wrap the common cases — `guardiam_hw` is the
+real-hardware launch, run it first.
+
+## Xbox Controller Controls
+
+Teleop is an Xbox controller via the standard `joy` + `teleop_twist_joy`
+packages (config: `xbox_teleop.yaml`), not GUARDIAN's own keyboard node.
+Connect over USB or Bluetooth — both work, USB is more reliable.
+
+| Control | Action |
+|---------|--------|
+| **LB** (hold) | Deadman switch — nothing moves unless this is held, matching the old keyboard teleop's "only while held" safety |
+| Left stick vertical | Forward / backward |
+| Left stick horizontal | Strafe left / right |
+| Right stick horizontal | Rotate |
+
+Button/axis numbers were verified empirically (`buttons`/`axes` indices vary
+by controller and driver, don't trust the "standard" xpad numbering blindly):
+`enable_button: 6` (LB), `axis_linear.x: 1` (left stick Y), `axis_linear.y: 0`
+(left stick X), `axis_angular.yaw: 2` (right stick X).
+
+**No turbo currently** — RB was meant to be the turbo button
+(`enable_turbo_button`), but on this controller/driver combo RB's button
+press reaches the kernel fine (raw evdev shows `BTN_TR` firing) yet never
+appears in `joy_node`'s published `/joy` message at all. Root cause not
+found yet; `enable_turbo_button` is set to `-1` (disabled) rather than
+pointing at a button that silently never fires. Speed scales in
+`xbox_teleop.yaml` (`scale_linear`, `scale_angular`) are a fixed ~0.55 of
+the real 170 RPM-rated max — bump those if turbo gets fixed, or just to
+drive faster in the meantime.
 
 ## Config Files
 
 | File | Purpose |
 |------|---------|
 | `ekf_params.yaml` / `ekf_params_real.yaml` | robot_localization EKF configuration (sim / real) |
-| `nav2_params.yaml` / `nav2_params_real.yaml` | Nav2 navigation stack parameters (sim / real) |
+| `nav2_params.yaml` | Nav2 navigation stack parameters — one file for both sim and real (a separate `nav2_params_real.yaml` used to exist but was never wired into the launch file and had drifted stale; deleted) |
 | `robot_params.yaml` | Robot geometry, serial port, hardware params (single source of truth via a `/**` wildcard block) |
 | `lidar_filter_params.yaml` | Per-sensor LIDAR self-occlusion masking (front/back) |
+| `xbox_teleop.yaml` | `teleop_twist_joy` axis/button mapping and speed scales for the Xbox controller |
 | `navigate_to_pose.xml` | Nav2 behavior tree for `navigate_to_pose` |
 | `guardian.rviz` | RViz display config — one file for both mapping and navigation mode, since Nav2 core runs in both |
 
@@ -70,5 +98,6 @@ The aliases in `60_scripts/guardiam_env.sh` (`guardiam_sim`, `guardiam_map`,
 - `bt_navigator` needs `wait_for_service_timeout: 3000` in `nav2_params*.yaml` or it fails to find `behavior_server` on slower hardware.
 - `behavior_server` must be listed before `bt_navigator` in the `node_names` array of the lifecycle manager config.
 - `autostart: true` in the Nav2 params — the Nav2 lifecycle starts automatically on launch, no manual "Startup" click needed.
-- Depends on `guardian_description`, `guardian_drive`, `guardian_localization`, `guardian_manipulation`, `guardian_navigation`, `guardian_teleop`, plus `nav2_bringup`, `robot_localization`, `slam_toolbox`, `l3xz_sweep_scanner`, `rviz2`, `xacro`.
+- Depends on `guardian_description`, `guardian_drive`, `guardian_localization`, `guardian_manipulation`, `guardian_navigation`, plus `joy`, `teleop_twist_joy`, `nav2_bringup`, `robot_localization`, `slam_toolbox`, `l3xz_sweep_scanner`, `rviz2`, `xacro`.
+- Teleop is Xbox controller based (`joy` + `teleop_twist_joy`, config in `xbox_teleop.yaml`) — GUARDIAN's own `guardian_teleop` keyboard node is no longer wired into either launch file (kept in the codebase, just unused here). On real hardware it's launched unconditionally by `guardian_hardware.launch.py`, always on with no flag to remember.
 - RealSense D415 camera node removed (was `realsense2_camera` in the real-hardware launch branch) — the pinned realsense-ros release doesn't support ROS_DISTRO=jazzy and broke full-workspace builds. Re-add once a Jazzy-compatible release exists upstream.

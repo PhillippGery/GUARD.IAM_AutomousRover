@@ -24,7 +24,8 @@ Meta Quest 3 mixed-reality teleoperation, keyboard, and joystick fallback contro
 ## How to Launch or Run
 
 ```bash
-# auto-enabled in guardian.launch.py's mapping mode, or standalone:
+# standalone only — neither node is wired into guardian.launch.py anymore
+# (see Known Issues below):
 ros2 run guardian_teleop keyboard_teleop_node
 ros2 run guardian_teleop joystick_fallback_node
 ```
@@ -61,6 +62,7 @@ focus; while grabbed, your keyboard is unavailable to everything else).
 
 ## Known Issues / Dependencies
 
+- Neither node here is wired into `guardian_bringup`'s `guardian.launch.py` anymore — it uses the standard ROS2 `joy` + `teleop_twist_joy` packages directly instead (config/controls documented in `guardian_bringup`'s README). Both nodes are kept in the codebase and still work standalone, just unused in the main launch path.
 - `keyboard_teleop_node` and `joystick_fallback_node` both publish `/cmd_vel` — don't run both at once, or drive commands will race.
 - `keyboard_teleop_node` requires `input` group membership to read `/dev/input` — see above.
 - `quest_bridge_node` is an unimplemented stub; the WebSocket bridge server itself lives outside this package — see [50_teleop/quest_bridge/](../../../50_teleop/quest_bridge/).

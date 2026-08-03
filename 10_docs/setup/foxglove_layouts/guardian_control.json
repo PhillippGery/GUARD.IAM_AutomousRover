@@ -1,0 +1,321 @@
+{
+  "configById": {
+    "Parameters!2zu553j": {},
+    "RosOut!1fate9k": {
+      "minLogLevel": 1,
+      "searchTerms": [],
+      "nameFilter": {},
+      "fontSize": 12,
+      "showLevel": true,
+      "showDate": true,
+      "showTime": true,
+      "showTimezone": true,
+      "showName": true,
+      "showSourceLocation": false
+    },
+    "CallService!2rxhxs6": {
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "timeoutSeconds": 10,
+      "serviceName": "/guardian/save_map",
+      "buttonText": "💾 Save Map"
+    },
+    "CallService!ml6iil": {
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "timeoutSeconds": 10,
+      "serviceName": "/guardian/switch_to_mapping",
+      "buttonText": "🗺️ Start Mapping"
+    },
+    "CallService!3z3utwf": {
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "timeoutSeconds": 10,
+      "serviceName": "/guardian/switch_to_navigation",
+      "buttonText": "🧭 Start Navigation"
+    },
+    "CallService!8znqt": {
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "timeoutSeconds": 10,
+      "serviceName": "/guardian/start_demo",
+      "buttonText": "🚀 Start Demo"
+    },
+    "3D!18i6zy7": {
+      "layers": {
+        "845139cb-26bc-40b3-8161-8ab60af4baf5": {
+          "visible": true,
+          "frameLocked": true,
+          "label": "Grid",
+          "instanceId": "845139cb-26bc-40b3-8161-8ab60af4baf5",
+          "layerId": "foxglove.Grid",
+          "size": 10,
+          "divisions": 10,
+          "lineWidth": 1,
+          "color": "#248eff",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "order": 1
+        },
+        "a8998364-67db-487d-bb8d-cb3e2b082e1e": {
+          "controlMode": "transforms",
+          "jointStatesTopic": "",
+          "displayMode": "auto",
+          "fallbackColor": "#ffffff",
+          "showAxis": false,
+          "axisScale": 1,
+          "showOutlines": true,
+          "opacity": 1,
+          "visible": true,
+          "instanceId": "a8998364-67db-487d-bb8d-cb3e2b082e1e",
+          "layerId": "foxglove.Urdf",
+          "label": "URDF",
+          "sourceType": "topic",
+          "url": "",
+          "filePath": "",
+          "parameter": "",
+          "topic": "/robot_description",
+          "framePrefix": "",
+          "order": 2
+        }
+      },
+      "cameraState": {
+        "perspective": false,
+        "distance": 17.58086915909933,
+        "phi": 0.00005729832627056611,
+        "thetaOffset": 179.4621986353325,
+        "targetOffset": [
+          -0.012517329330195106,
+          0.18342091019144188,
+          -0.08999999999999982
+        ],
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "fovy": 45,
+        "near": 0.5,
+        "far": 5000
+      },
+      "followMode": "follow-position",
+      "followTf": "map",
+      "scene": {
+        "transforms": {
+          "showLabel": false
+        },
+        "meshUpAxis": "z_up"
+      },
+      "transforms": {},
+      "topics": {
+        "/map": {
+          "visible": true
+        },
+        "/robot_description": {
+          "displayMode": "visual",
+          "visible": true
+        },
+        "/move_base_simple/goal": {
+          "visible": false
+        },
+        "/initialpose": {
+          "visible": false
+        },
+        "/plan": {
+          "visible": true
+        },
+        "/plan_smoothed": {
+          "visible": true
+        },
+        "/global_costmap/costmap": {
+          "visible": false
+        },
+        "/local_costmap/costmap": {
+          "visible": false
+        },
+        "/scan_filtered": {
+          "visible": false,
+          "colorField": "intensity",
+          "colorMode": "colormap",
+          "colorMap": "turbo"
+        },
+        "/scan_front_filtered": {
+          "visible": false,
+          "colorField": "intensity",
+          "colorMode": "colormap",
+          "colorMap": "turbo"
+        },
+        "/transformed_global_plan": {
+          "visible": false
+        },
+        "/scan_back": {
+          "visible": false,
+          "colorField": "intensity",
+          "colorMode": "colormap",
+          "colorMap": "turbo"
+        },
+        "/scan": {
+          "visible": false,
+          "colorField": "intensity",
+          "colorMode": "colormap",
+          "colorMap": "turbo"
+        },
+        "/global_costmap/obstacle_layer": {
+          "visible": false
+        },
+        "/global_costmap/published_footprint": {
+          "visible": false
+        },
+        "/global_costmap/static_layer": {
+          "visible": false
+        },
+        "/goal_pose": {
+          "visible": false
+        },
+        "/local_costmap/voxel_layer": {
+          "visible": true,
+          "maxColor": "#2fdedeff"
+        }
+      },
+      "publish": {
+        "type": "pose",
+        "poseTopic": "/goal_pose",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26179939
+      },
+      "synchronize": false,
+      "imageMode": {}
+    },
+    "Indicator!47dy6h1": {
+      "path": "/guardian/stack_ready.data",
+      "style": "bulb",
+      "fontSize": 36,
+      "fallbackColor": "#a0a0a0",
+      "fallbackLabel": "Not Ready",
+      "rules": [
+        {
+          "operator": "=",
+          "rawValue": "true",
+          "color": "#68e24a",
+          "label": "Ready"
+        }
+      ],
+      "foxglovePanelTitle": "🟢 Stack Ready"
+    },
+    "Image!3mnp456": {
+      "cameraState": {
+        "distance": 20,
+        "perspective": true,
+        "phi": 60,
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "targetOffset": [
+          0,
+          0,
+          0
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "thetaOffset": 60,
+        "fovy": 45,
+        "near": 0.5,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "scene": {},
+      "transforms": {},
+      "topics": {},
+      "layers": {},
+      "publish": {
+        "type": "point",
+        "poseTopic": "/move_base_simple/goal",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26179939
+      },
+      "synchronize": false,
+      "imageMode": {}
+    },
+    "RawMessages!os6rgs": {
+      "defaultExpanded": false,
+      "diffEnabled": false
+    }
+  },
+  "globalVariables": {
+    "waypointIndex": 1
+  },
+  "userNodes": {},
+  "playbackConfig": {
+    "speed": 1
+  },
+  "layout": {
+    "first": {
+      "first": {
+        "first": {
+          "first": "Parameters!2zu553j",
+          "second": "RosOut!1fate9k",
+          "direction": "column"
+        },
+        "second": "CallService!2rxhxs6",
+        "direction": "row",
+        "splitPercentage": 51.14801856450036
+      },
+      "second": {
+        "first": "CallService!ml6iil",
+        "second": {
+          "first": "CallService!3z3utwf",
+          "second": "CallService!8znqt",
+          "direction": "row",
+          "splitPercentage": 56.22894147478402
+        },
+        "direction": "row",
+        "splitPercentage": 32.771582395360774
+      },
+      "direction": "row",
+      "splitPercentage": 50.97417213088061
+    },
+    "second": {
+      "first": "3D!18i6zy7",
+      "second": {
+        "first": {
+          "first": "Indicator!47dy6h1",
+          "second": "Image!3mnp456",
+          "direction": "column"
+        },
+        "second": "RawMessages!os6rgs",
+        "direction": "column",
+        "splitPercentage": 77.54412303124137
+      },
+      "direction": "row",
+      "splitPercentage": 70
+    },
+    "direction": "column",
+    "splitPercentage": 28.684477747820303
+  }
+}

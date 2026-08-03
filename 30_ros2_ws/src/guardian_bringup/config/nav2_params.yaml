@@ -88,7 +88,11 @@ local_costmap:
       width: 3
       height: 3
       resolution: 0.05
-      robot_radius: 0.28
+      # 0.28 didn't even cover the LIDAR mounts' own 0.3196m protrusion
+      # from center (guardian_description/urdf/dimensions.xacro,
+      # lidar_front_x/lidar_back_x) — Nav2 would think the robot is
+      # smaller than it really is. 0.35 gives real margin over that.
+      robot_radius: 0.35
       plugins: ['voxel_layer', 'inflation_layer']
       voxel_layer:
         plugin: nav2_costmap_2d::VoxelLayer
@@ -124,7 +128,11 @@ global_costmap:
       publish_frequency: 1.0
       global_frame: map
       robot_base_frame: base_link
-      robot_radius: 0.28
+      # 0.28 didn't even cover the LIDAR mounts' own 0.3196m protrusion
+      # from center (guardian_description/urdf/dimensions.xacro,
+      # lidar_front_x/lidar_back_x) — Nav2 would think the robot is
+      # smaller than it really is. 0.35 gives real margin over that.
+      robot_radius: 0.35
       resolution: 0.05
       track_unknown_space: true
       plugins: ['static_layer', 'obstacle_layer', 'inflation_layer']
