@@ -27,7 +27,9 @@ import os
 import subprocess
 
 import rclpy
+from action_msgs.srv import CancelGoal
 from ament_index_python.packages import get_package_share_directory
+from geometry_msgs.msg import Twist
 from rclpy.node import Node
 from std_srvs.srv import Trigger
 
@@ -46,10 +48,23 @@ class WebOpsNode(Node):
             Trigger, '/guardian/save_map', self._save_map)
         self.create_service(
             Trigger, '/guardian/start_demo', self._start_demo)
+        self.create_service(Trigger, '/guardian/stop', self._stop)
+        # Every ROS2 action server auto-exposes a CancelGoal service at
+        # <action_name>/_action/cancel_goal — calling it with an all-zero
+        # goal_id (the default, unset CancelGoal.Request()) cancels EVERY
+        # active goal on that server, not just one specific goal handle.
+        # That's deliberate here: a goal could have come from the Publish
+        # panel, demo_mission_node, or anything else, and Stop should not
+        # need to know or care which.
+        self._cancel_nav_client = self.create_client(
+            CancelGoal, '/navigate_to_pose/_action/cancel_goal')
+        self._cancel_poses_client = self.create_client(
+            CancelGoal, '/navigate_through_poses/_action/cancel_goal')
+        self._cmd_vel_pub = self.create_publisher(Twist, '/cmd_vel', 10)
         self.get_logger().info(
             'web_ops_node ready — /guardian/switch_to_mapping, '
             '/guardian/switch_to_navigation, /guardian/save_map, '
-            '/guardian/start_demo')
+            '/guardian/start_demo, /guardian/stop')
 
     def _switch_mode(self, mode: str, response: Trigger.Response):
         # Stopping both instances first (not just the one we're leaving)
@@ -134,6 +149,49 @@ class WebOpsNode(Node):
             ['ros2', 'run', 'guardian_navigation', 'demo_mission_node'])
         response.success = True
         response.message = f'demo started (pid {self._demo_proc.pid})'
+        self.get_logger().info(f'web_ops_node: {response.message}')
+        return response
+
+    def _stop(self, request, response: Trigger.Response):
+        # Deliberately does NOT touch guardian-stack@.service — Stop means
+        # "abort what's happening and go idle", not "tear down the nav
+        # stack". controller_server/bt_navigator stay exactly as active as
+        # they were, so /guardian/stack_ready stays green the whole time
+        # and a new goal can be sent immediately after, no restart needed.
+        #
+        # Zero cmd_vel is published FIRST and synchronously, before even
+        # trying to cancel the goal — that's the part that actually has to
+        # be immediate. Cancelling the Nav2 goal on top stops
+        # controller_server from producing a fresh nonzero command a
+        # moment later (which would otherwise just overwrite the zero we
+        # just sent); the direct publish is the real safety stop,
+        # cancellation is cleanup so it doesn't get overridden.
+        #
+        # Bare .call_async() with no synchronous wait on the result,
+        # same reason _start_demo uses Popen instead of .run(): this node
+        # spins on a single-threaded executor, so blocking a service
+        # callback on another service's response (e.g. calling
+        # future.result() here) would deadlock — the executor can't
+        # deliver that response while it's stuck waiting inside this
+        # callback. Fire-and-forget is the only safe way to call another
+        # service from in here.
+        stop_twist = Twist()
+        for _ in range(5):
+            self._cmd_vel_pub.publish(stop_twist)
+
+        cancelled = []
+        for name, client in (
+            ('navigate_to_pose', self._cancel_nav_client),
+            ('navigate_through_poses', self._cancel_poses_client),
+        ):
+            if client.service_is_ready():
+                client.call_async(CancelGoal.Request())
+                cancelled.append(name)
+
+        response.success = True
+        response.message = (
+            f'stopped — cmd_vel zeroed, cancel requested for: '
+            f'{cancelled or "(no active action servers found)"}')
         self.get_logger().info(f'web_ops_node: {response.message}')
         return response
 

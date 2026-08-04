@@ -89,13 +89,13 @@
       },
       "cameraState": {
         "perspective": false,
-        "distance": 17.58086915909933,
+        "distance": 17.5808691590981,
         "phi": 0.00005729832627056611,
-        "thetaOffset": 179.4621986353325,
+        "thetaOffset": 179.46219863373778,
         "targetOffset": [
-          -0.012517329330195106,
-          0.18342091019144188,
-          -0.08999999999999982
+          0.9284726779716261,
+          2.462490273127814,
+          -0.0899999999999998
         ],
         "target": [
           0,
@@ -203,6 +203,15 @@
       "synchronize": false,
       "imageMode": {}
     },
+    "CallService!c8xxrf": {
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "timeoutSeconds": 10,
+      "serviceName": "/guardian/stop",
+      "foxglovePanelTitle": "",
+      "buttonText": "🛑 STOP",
+      "buttonTooltip": ""
+    },
     "Indicator!47dy6h1": {
       "path": "/guardian/stack_ready.data",
       "style": "bulb",
@@ -218,53 +227,6 @@
         }
       ],
       "foxglovePanelTitle": "🟢 Stack Ready"
-    },
-    "Image!3mnp456": {
-      "cameraState": {
-        "distance": 20,
-        "perspective": true,
-        "phi": 60,
-        "target": [
-          0,
-          0,
-          0
-        ],
-        "targetOffset": [
-          0,
-          0,
-          0
-        ],
-        "targetOrientation": [
-          0,
-          0,
-          0,
-          1
-        ],
-        "thetaOffset": 60,
-        "fovy": 45,
-        "near": 0.5,
-        "far": 5000
-      },
-      "followMode": "follow-pose",
-      "scene": {},
-      "transforms": {},
-      "topics": {},
-      "layers": {},
-      "publish": {
-        "type": "point",
-        "poseTopic": "/move_base_simple/goal",
-        "pointTopic": "/clicked_point",
-        "poseEstimateTopic": "/initialpose",
-        "poseEstimateXDeviation": 0.5,
-        "poseEstimateYDeviation": 0.5,
-        "poseEstimateThetaDeviation": 0.26179939
-      },
-      "synchronize": false,
-      "imageMode": {}
-    },
-    "RawMessages!os6rgs": {
-      "defaultExpanded": false,
-      "diffEnabled": false
     }
   },
   "globalVariables": {
@@ -303,19 +265,15 @@
     "second": {
       "first": "3D!18i6zy7",
       "second": {
-        "first": {
-          "first": "Indicator!47dy6h1",
-          "second": "Image!3mnp456",
-          "direction": "column"
-        },
-        "second": "RawMessages!os6rgs",
+        "first": "CallService!c8xxrf",
+        "second": "Indicator!47dy6h1",
         "direction": "column",
-        "splitPercentage": 77.54412303124137
+        "splitPercentage": 22.55639134713558
       },
       "direction": "row",
       "splitPercentage": 70
     },
     "direction": "column",
-    "splitPercentage": 28.684477747820303
+    "splitPercentage": 32.27487304234683
   }
 }

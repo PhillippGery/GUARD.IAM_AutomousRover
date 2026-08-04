@@ -13,7 +13,12 @@ amcl:
     do_beamskip: false
     global_frame_id: map
     lambda_short: 0.1
-    laser_likelihood_max_dist: 2.0
+    # Was 2.0 — the Scanse Sweep V1 is a cheap, low-precision sensor (no
+    # comparison to a Hokuyo/SICK-class LIDAR); a beam landing near but not
+    # exactly on a mapped obstacle from real ranging error was being
+    # penalized more sharply than the sensor's actual accuracy justifies.
+    # Widened so the likelihood field is more tolerant of that.
+    laser_likelihood_max_dist: 3.0
     laser_max_range: 20.0
     laser_min_range: -1.0
     laser_model_type: likelihood_field
@@ -23,19 +28,44 @@ amcl:
     odom_frame_id: odom
     pf_err: 0.05
     pf_z: 0.99
-    recovery_alpha_fast: 0.0
-    recovery_alpha_slow: 0.0
+    # Both were 0.0 — recovery entirely disabled. Once the particle filter
+    # converges to a wrong belief (real sensor noise + mecanum wheel slip
+    # make this easy on real hardware, much easier than sim), AMCL had
+    # zero mechanism to inject fresh random particles and recover — it
+    # just stays wrong until manually re-initialized. These are Nav2's own
+    # documented defaults: recovery_alpha_slow tracks long-term average
+    # likelihood, recovery_alpha_fast tracks short-term — when fast drops
+    # well below slow (a sudden bad match), particles get randomized in
+    # proportion, giving the filter a chance to relocalize instead of
+    # staying stuck.
+    recovery_alpha_fast: 0.1
+    recovery_alpha_slow: 0.001
     resample_interval: 1
     robot_model_type: nav2_amcl::OmniMotionModel
     save_pose_rate: 0.5
-    sigma_hit: 0.2
+    # Was 0.2 — the Gaussian hit-noise std-dev, i.e. how tightly a beam is
+    # expected to land on the true obstacle distance. 0.2m assumes
+    # accuracy this cheap sensor doesn't actually have; widened to be
+    # realistic about real ranging error instead of penalizing it as if
+    # it were a matching failure.
+    sigma_hit: 0.35
     tf_broadcast: true
     transform_tolerance: 1.0
-    update_min_a: 0.2
-    update_min_d: 0.25
-    z_hit: 0.5
+    # Was 0.2/0.25 — coarse for a slow-moving confined-space robot; the
+    # filter only re-evaluated its pose estimate after 25cm of travel or
+    # ~11° of rotation, feeling "stuck"/imprecise for careful, low-speed
+    # maneuvering. Tightened for more responsive tracking.
+    update_min_a: 0.1
+    update_min_d: 0.15
+    # These are meant to sum to 1.0 (mixture weights over the sensor
+    # model's 4 components) — they were 0.5/0.05/0.5/0.05 = 1.10,
+    # over-weighting the model overall. Rebalanced to actually sum to 1.0
+    # while keeping the same noise-tolerant spirit (z_rand this high
+    # reflects the Sweep V1 genuinely producing a lot of unexplained/
+    # spurious readings, not a mistake to correct away).
+    z_hit: 0.45
     z_max: 0.05
-    z_rand: 0.5
+    z_rand: 0.45
     z_short: 0.05
     scan_topic: /scan_filtered
     map_topic: /map
