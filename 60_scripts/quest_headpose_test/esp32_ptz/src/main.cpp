@@ -33,18 +33,18 @@ void setup() {
 
   panServo.setPeriodHertz(50);
   tiltServo.setPeriodHertz(50);
-  panServo.attach(PAN_PIN,   1000, 2000);
-  tiltServo.attach(TILT_PIN, 1000, 2000);
+  // Full 500-2500 µs range → write(90) = true mechanical center (1500 µs)
+  panServo.attach(PAN_PIN,   500, 2500);
+  tiltServo.attach(TILT_PIN, 500, 2500);
 
-  // Boot sweep — confirms both servos respond before going live.
-  for (int a = 40; a <= 130; a += 5) {
-    panServo.write(a); tiltServo.write(a); delay(60);
-  }
-  for (int a = 130; a >= 40; a -= 5) {
-    panServo.write(a); tiltServo.write(a); delay(60);
-  }
+  // Limit sweep so you can see the full physical range
+  Serial.println(">> MIN (0 deg)");
+  panServo.write(0);   tiltServo.write(0);   delay(1500);
+  Serial.println(">> MAX (180 deg)");
+  panServo.write(180); tiltServo.write(180); delay(1500);
+  Serial.println(">> CENTER (90 deg = 1500 us)");
 
-  applyCommand(96, 90);
+  applyCommand(100, 71);
   Serial.println("GUARD.IAM PTZ ready. Send: pan,tilt");
 }
 
