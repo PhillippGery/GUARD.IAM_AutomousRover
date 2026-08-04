@@ -1,0 +1,104 @@
+// CALIBRATION SKETCH — find exact home pulse widths for SG90 / MG90S
+//
+// HOW TO USE:
+//   1. Rename this file to main.cpp (rename the real main.cpp away first)
+//   2. Flash and open Serial Monitor at 115200 baud
+//   3. Send commands to nudge each servo until it sits exactly at home:
+//        p+   pan  +5 µs
+//        p-   pan  -5 µs
+//        t+   tilt +5 µs
+//        t-   tilt -5 µs
+//        p+10  (any number after +/- for bigger steps)
+//        s    print current µs values
+//        c    print copy-paste lines for main.cpp
+//   4. Copy the printed values into main.cpp HOME_PAN_US / HOME_TILT_US
+//   5. Rename this file back, restore main.cpp
+
+#include <Arduino.h>
+#include <ESP32Servo.h>
+
+static const int PAN_PIN  = 5;
+static const int TILT_PIN = 6;
+
+// Safe travel limits in µs — do not exceed without checking physical stops
+static const int US_MIN = 500;
+static const int US_MAX = 2500;
+
+// Start at midpoint; nudge from here
+static int panUs  = 1500;
+static int tiltUs = 1500;
+
+Servo panServo;
+Servo tiltServo;
+String rxBuf;
+
+static int clampi(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
+
+void applyUs() {
+  panServo.writeMicroseconds(panUs);
+  tiltServo.writeMicroseconds(tiltUs);
+}
+
+void printStatus() {
+  Serial.print("pan="); Serial.print(panUs);
+  Serial.print(" µs  |  tilt="); Serial.print(tiltUs); Serial.println(" µs");
+}
+
+void printCopyPaste() {
+  Serial.println("--- copy these into main.cpp ---");
+  Serial.print("static const int HOME_PAN_US  = "); Serial.print(panUs);  Serial.println(";");
+  Serial.print("static const int HOME_TILT_US = "); Serial.print(tiltUs); Serial.println(";");
+  Serial.println("--------------------------------");
+}
+
+void setup() {
+  Serial.begin(115200);
+  delay(1500);
+
+  panServo.setPeriodHertz(50);
+  tiltServo.setPeriodHertz(50);
+  panServo.attach(PAN_PIN,   US_MIN, US_MAX);
+  tiltServo.attach(TILT_PIN, US_MIN, US_MAX);
+
+  applyUs();
+  Serial.println("=== PTZ CALIBRATION MODE ===");
+  Serial.println("Commands: p+[n]  p-[n]  t+[n]  t-[n]  s(status)  c(copy-paste)");
+  Serial.println("Default step = 5 µs. Example: p+20  t-10");
+  printStatus();
+}
+
+void handleCommand(String cmd) {
+  cmd.trim();
+  if (cmd.length() == 0) return;
+
+  if (cmd == "s") { printStatus(); return; }
+  if (cmd == "c") { printCopyPaste(); return; }
+
+  char axis = cmd.charAt(0);   // 'p' or 't'
+  char dir  = cmd.charAt(1);   // '+' or '-'
+  if (axis != 'p' && axis != 't') { Serial.println("unknown command"); return; }
+  if (dir  != '+' && dir  != '-') { Serial.println("unknown command"); return; }
+
+  int step = 5;
+  if (cmd.length() > 2) step = cmd.substring(2).toInt();
+  if (step <= 0) step = 5;
+  if (dir == '-') step = -step;
+
+  if (axis == 'p') panUs  = clampi(panUs  + step, US_MIN, US_MAX);
+  else             tiltUs = clampi(tiltUs + step, US_MIN, US_MAX);
+
+  applyUs();
+  printStatus();
+}
+
+void loop() {
+  while (Serial.available()) {
+    char c = (char)Serial.read();
+    if (c == '\n' || c == '\r') {
+      if (rxBuf.length() > 0) { handleCommand(rxBuf); rxBuf = ""; }
+    } else {
+      rxBuf += c;
+      if (rxBuf.length() > 32) rxBuf = "";
+    }
+  }
+}
