@@ -25,10 +25,11 @@
 | Qualcomm | Rubik Pi 3 | $179 |
 | CubeMars | AKA10-9 actuators ×4 (20% discount) | ~$640 |
 | StepperOnline | 57BLR50 motors ×4 (20% discount) | ~$250 |
-| Ouster | OS0 3D LIDAR (active — Duncan engaged) | ~$4,500 |
-| **Total sponsored** | | **~$6,700** |
+| **Total sponsored** | | **~$2,200** |
 
-**Total platform value: ~$9,000**
+**Total platform value: ~$4,500**
+
+> Full component costs: `10_docs/hardware/Componet_List.xlsx`
 
 ---
 
