@@ -18,9 +18,9 @@ import subprocess
 import sys
 
 # ── CONFIG ──────────────────────────────────────────────────────────────────
-REPO_ID    = "nadslab/guardian_strawberry_pick_batch5"    # MUST match collect.py's REPO_ID
-OUTPUT_DIR = "/scratch/gilbreth/pnadeaul/GUARD.IAM_AutomousRover/checkpoints/guardian_act_batch5"
-JOB_NAME   = "guardian_act_batch5"
+REPO_ID    = "nadslab/guardian_strawberry_pick_batch6"    # MUST match collect.py's REPO_ID
+OUTPUT_DIR = "/scratch/gilbreth/pnadeaul/GUARD.IAM_AutomousRover/checkpoints/guardian_act_batch6"
+JOB_NAME   = "guardian_act_batch6"
 POLICY     = "act"
 DEVICE     = "cuda"          # "cuda", "cpu", or "mps"
 BATCH_SIZE = 8
