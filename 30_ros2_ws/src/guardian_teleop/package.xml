@@ -12,6 +12,9 @@
   <depend>nav_msgs</depend>
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
+  <!-- keyboard_teleop_node reads /dev/input directly for real key
+       press/release events (a terminal has no key-up event at all) -->
+  <exec_depend>python3-evdev</exec_depend>
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
   <test_depend>ament_pep257</test_depend>

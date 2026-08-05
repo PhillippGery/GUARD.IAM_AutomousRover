@@ -23,4 +23,4 @@ pip install websockets
 python 50_teleop/quest_bridge/websocket_bridge.py
 ```
 
-Then launch `guardian_teleop.launch.py`.
+Then run `ros2 run guardian_teleop keyboard_teleop_node` (or launch `guardian.launch.py`, which auto-enables teleop in mapping mode).

@@ -3,46 +3,106 @@ Panels:
     Name: Displays
   - Class: rviz_common/Views
     Name: Views
+  - Class: nav2_rviz_plugins/Navigation 2
+    Name: Navigation 2
+
 Visualization Manager:
   Displays:
-    - Alpha: 0.5
-      Cell Size: 1
-      Class: rviz_default_plugins/Grid
-      Color: 160; 160; 164
+    - Class: rviz_default_plugins/Grid
       Name: Grid
+      Alpha: 0.5
+      Cell Size: 1.0
+      Color: 160; 160; 164
+
     - Class: rviz_default_plugins/RobotModel
+      Name: RobotModel
       Description Topic:
         Value: /robot_description
-      Name: RobotModel
       Enabled: true
+
     - Class: rviz_default_plugins/TF
       Name: TF
       Enabled: true
       Show Arrows: false
       Show Axes: true
-      Show Names: true
+      Show Names: false
+
     - Class: rviz_default_plugins/LaserScan
       Name: LaserScan
       Topic:
-        Value: /scan
-      Color: 255; 0; 0
-      Size (m): 0.05
+        Value: /scan_filtered
       Enabled: true
+      Size (m): 0.04
+      Color: 255; 50; 50
+
+    - Class: rviz_default_plugins/Map
+      Name: SLAM Map
+      Topic:
+        Value: /map
+      Enabled: true
+      Alpha: 0.7
+      Color Scheme: map
+
+    - Class: rviz_default_plugins/Map
+      Name: Global Costmap
+      Topic:
+        Value: /global_costmap/costmap
+      Enabled: true
+      Alpha: 0.4
+      Color Scheme: costmap
+
+    - Class: rviz_default_plugins/Map
+      Name: Local Costmap
+      Topic:
+        Value: /local_costmap/costmap
+      Enabled: true
+      Alpha: 0.5
+      Color Scheme: costmap
+
+    - Class: rviz_default_plugins/Path
+      Name: Global Path
+      Topic:
+        Value: /plan
+      Enabled: true
+      Color: 0; 255; 0
+      Line Width: 0.03
+
+    - Class: rviz_default_plugins/Path
+      Name: Local Path
+      Topic:
+        Value: /local_plan
+      Enabled: true
+      Color: 0; 0; 255
+      Line Width: 0.03
+
+    - Class: rviz_default_plugins/Polygon
+      Name: Robot Footprint
+      Topic:
+        Value: /local_costmap/published_footprint
+      Enabled: true
+      Color: 25; 255; 0
+
     - Class: rviz_default_plugins/Odometry
       Name: Odometry
       Topic:
         Value: /odom
       Enabled: true
+      Keep: 100
+      Angle Tolerance: 0.1
+      Position Tolerance: 0.1
+
   Global Options:
-    Fixed Frame: odom
+    Fixed Frame: map
     Frame Rate: 30
+
   Tools:
     - Class: rviz_default_plugins/MoveCamera
     - Class: rviz_default_plugins/Select
-  Value: true
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: nav2_rviz_plugins/GoalTool
+
   Views:
     Current:
-      Class: rviz_default_plugins/Orbit
-      Distance: 2.0
-      Pitch: 0.7
+      Class: rviz_default_plugins/TopDownOrtho
+      Scale: 50.0
       Target Frame: base_link

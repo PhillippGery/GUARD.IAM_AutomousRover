@@ -1,0 +1,41 @@
+teleop_twist_joy_node:
+  ros__parameters:
+    # Standard Linux xpad driver axis layout for an Xbox controller.
+    # Mirrors keyboard_teleop_node's WASD+QE scheme: left stick =
+    # forward/back + strafe, right stick X = rotate.
+    axis_linear:
+      x: 1   # Left stick vertical   -> forward/back
+      y: 0   # Left stick horizontal -> strafe left/right
+    axis_angular:
+      yaw: 2 # Right stick horizontal -> rotate. Confirmed empirically:
+             # axes 4/5 idle at 1.0 (classic trigger signature), so this
+             # controller's real layout is 0,1=left stick, 2,3=right
+             # stick, 4,5=triggers — not the 0,1,3-right-stick-X layout
+             # originally assumed.
+
+    # Real motor spec: 170 RPM rated max wheel speed, 0.0775 m wheel radius
+    # (same constants as keyboard_teleop_node.py) -> ~1.3797 m/s max.
+    # Normal scale is a controlled fraction of that; turbo (RB held) is
+    # most of the rated max. Sign/exact feel wants a bench check once the
+    # controller is actually plugged in — flip to negative here if forward
+    # on the stick drives the robot backward.
+    scale_linear:
+      x: 0.55
+      y: 0.55
+    scale_linear_turbo:
+      x: 1.1
+      y: 1.1
+    scale_angular:
+      yaw: 1.0
+    scale_angular_turbo:
+      yaw: 2.0
+
+    # Confirmed empirically via live /joy capture: LB -> buttons[6], not
+    # buttons[4] as the standard xpad numbering would suggest. RB reaches
+    # the kernel fine (BTN_TR fires) but never shows up in /joy's buttons
+    # array at all on this controller/driver combo — a joy_node-specific
+    # quirk, not yet root-caused. enable_turbo_button is left off (-1)
+    # rather than pointing at a button that silently never fires.
+    enable_button: 6         # LB — hold to move (deadman switch, matches
+                              # keyboard teleop's "only while held" safety)
+    enable_turbo_button: -1  # disabled until RB's /joy issue is solved

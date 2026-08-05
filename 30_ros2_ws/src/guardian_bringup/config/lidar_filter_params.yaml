@@ -1,0 +1,25 @@
+# GUARDIAN — LIDAR self-occlusion masking, consumed by lidar_republisher_node
+# (guardian_localization) for each raw sensor topic before lidar_merger_node
+# combines them into /scan_filtered.
+#
+# mask_angle_ranges is 'lo1,hi1,lo2,hi2,...' in radians, in the SENSOR's own
+# angle_min/angle_max frame (not base_link) — see lidar_republisher_node.py's
+# _angle_in_range() for the exact wrap-around semantics. Each pair's beams
+# are set to NaN (ignored by SLAM/costmaps, not treated as an obstacle or as
+# clear space).
+#
+# First pass, not yet CAD-measured: both LIDAR units are mounted so their own
+# angle=0 already points outward, away from the chassis (front: yaw=0,
+# back: yaw=180deg in guardian_sim.urdf.xacro) — so as a rough starting
+# point, give each sensor the 180 degrees it's actually facing (-90..+90)
+# and mask the other 180 degrees (the half looking back into the robot's
+# own body). Once the real blocked arc is measured off the CAD or the real
+# chassis, narrow these ranges to match — this is deliberately generous
+# (masks more than is strictly necessary) so nothing gets missed for now.
+lidar_front_republisher_node:
+  ros__parameters:
+    mask_angle_ranges: "1.57079633,-1.57079633"
+
+lidar_back_republisher_node:
+  ros__parameters:
+    mask_angle_ranges: "1.57079633,-1.57079633"

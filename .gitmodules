@@ -1,0 +1,6 @@
+[submodule "30_ros2_ws/src/lerobot"]
+	path = 30_ros2_ws/src/lerobot
+	url = https://github.com/huggingface/lerobot
+[submodule "30_ros2_ws/src/phidgets_drivers"]
+	path = 30_ros2_ws/src/phidgets_drivers
+	url = https://github.com/ros-drivers/phidgets_drivers

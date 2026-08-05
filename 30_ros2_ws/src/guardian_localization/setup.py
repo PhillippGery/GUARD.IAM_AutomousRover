@@ -21,6 +21,7 @@ setup(
     entry_points={
         'console_scripts': [
             'lidar_republisher_node = guardian_localization.lidar_republisher_node:main',
+            'lidar_merger_node = guardian_localization.lidar_merger_node:main',
         ],
     },
 )
