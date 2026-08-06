@@ -52,3 +52,7 @@ __pycache__/
 home_action.json
 frames_*.gv
 frames_*.pdf
+# Backup and log artifacts
+60_scripts/*.bak.*
+60_scripts/logs/
+logs/
