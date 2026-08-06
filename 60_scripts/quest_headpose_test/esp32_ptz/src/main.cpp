@@ -44,7 +44,7 @@ void setup() {
   panServo.write(180); tiltServo.write(180); delay(1500);
   Serial.println(">> CENTER (90 deg = 1500 us)");
 
-  applyCommand(100, 71);
+  applyCommand(71, 73);
   Serial.println("GUARD.IAM PTZ ready. Send: pan,tilt");
 }
 
