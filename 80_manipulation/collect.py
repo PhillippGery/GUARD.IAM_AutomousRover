@@ -45,13 +45,13 @@ except Exception:                       # pragma: no cover
     _pk = None
 
 # ── Settings ───────────────────────────────────────────────────────────────────
-NUM_EPISODES =  50
+NUM_EPISODES =  30               # batch 9
 EPISODE_TIME_SEC = 60                     # give yourself time — right arrow ends early
 RESET_TIME_SEC = 0                        # reset skipped entirely — see gate below
 PAUSE_EVERY = 10                          # auto-pause for a break every N kept episodes
                                           # (0 disables auto-pause). SPACEBAR (or the
                                           # center pedal) also pauses between episodes.
-REPO_ID = "guardian_strawberry_pick_batch5"   # fresh start, batch4 index corrupted, data preserved for later recovery
+REPO_ID = "guardian_strawberry_pick_batch9"   # batch 9
                                           # different id (e.g. guardian_practice)
 TASK = "Pick up the strawberry and place it in the bin"
 
