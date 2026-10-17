@@ -450,8 +450,8 @@ Config files: `30_ros2_ws/src/guardian_bringup/config/`
 |---|---|
 | **Vedant Patkar** (Lead) | Drive control (Phidget BLDC), sensor fusion/localization, LeRobot imitation learning pipeline, teleop, systems integration — MS ACS, Purdue |
 | **Nay Naing** | Chassis CAD & build |
-| **Rohan** | Chassis CAD & build |
-| **Saketh** | Arm redesign |
+| **Rohan Sankaran** | Chassis CAD & build |
+| **Saketh Boggavarapu** | Arm redesign |
 | **Jonathon Yates** | PID control, camera pan-tilt (YPR) controller |
 
 ### Original Team (StarkHacks 2026)
