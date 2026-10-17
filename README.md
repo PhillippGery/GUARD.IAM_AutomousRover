@@ -444,6 +444,18 @@ Config files: `30_ros2_ws/src/guardian_bringup/config/`
 
 ## Team
 
+### Current Team
+
+| Member | Role |
+|---|---|
+| **Vedant Patkar** (Lead) | Drive control (Phidget BLDC), sensor fusion/localization, LeRobot imitation learning pipeline, teleop, systems integration — MS ACS, Purdue |
+| **Nay Naing** | Chassis CAD & build |
+| **Rohan** | Chassis CAD & build |
+| **Saketh** | Arm redesign |
+| **Jonathon Yates** | PID control, camera pan-tilt (YPR) controller |
+
+### Original Team (StarkHacks 2026)
+
 | Member | Role |
 |---|---|
 | **Phillipp Gery** (Lead) | ROS2 architecture, Nav2, EKF, mecanum kinematics — MS ACS, Purdue, Fulbright Scholar |
