@@ -3,9 +3,9 @@
 <p align="center">
   <img src="https://img.shields.io/badge/ROS2-Jazzy-blue?logo=ros&logoColor=white" />
   <img src="https://img.shields.io/badge/Python-3.12-blue?logo=python&logoColor=white" />
-  <img src="https://img.shields.io/badge/Embedded-ESP32-teal?logo=espressif&logoColor=white" />
+  <img src="https://img.shields.io/badge/Drive-Phidget%20BLDC-teal" />
   <img src="https://img.shields.io/badge/Compute-AMD%20Ryzen%20AI-red?logo=amd&logoColor=white" />
-  <img src="https://img.shields.io/badge/MR-Meta%20Quest%203-blueviolet" />
+  <img src="https://img.shields.io/badge/MR-Meta%20Quest%203%20(planned)-blueviolet" />
   <img src="https://img.shields.io/badge/VLA-LeRobot-orange" />
   <img src="https://img.shields.io/badge/License-MIT-green" />
 </p>
@@ -46,7 +46,7 @@
 
 <img src="70_media/photos/guardian_rover.PNG" width="500" />
 
-*GUARD.IAM v1 — holonomic mecanum platform with dual SO-101 arms, Scanse Sweep LIDAR, Intel RealSense T265, and AMD Ryzen AI compute. Built in 36 hours at StarkHacks 2026.*
+*GUARD.IAM v1 — holonomic mecanum platform with dual SO-101 arms, dual Scanse Sweep LIDAR, and AMD Ryzen AI compute. Built in 36 hours at StarkHacks 2026; drive, sensing, and the teleop/arm stack have since moved on from this v1 build (see Subsystems below).*
 
 ![Bimanual manipulation demo](https://github.com/user-attachments/assets/58b780d2-d638-4a53-876a-c61e4d4fe11c)
 
@@ -63,7 +63,7 @@ GUARD.IAM is designed for **confined space intervention** — environments where
 | **Autonomous navigation** | Nav2 + EKF sensor fusion — navigates to a target without human input |
 | **Holonomic drive** | Mecanum kinematics — full omnidirectional movement in tight spaces |
 | **Dual-arm manipulation** | SO-101 arms controlled via LeRobot imitation learning |
-| **MR teleoperation** | Meta Quest 3 — head-tracked camera, hand-tracking arm control for human-in-the-loop fallback |
+| **MR teleoperation** *(planned)* | Meta Quest 3 — head-tracked camera, hand-tracking arm control for human-in-the-loop fallback |
 | **AI inference** | AMD Ryzen AI MiniPC running VLA policy inference on-board |
 
 **Background:** Three ACS students entered StarkHacks 2026 with no hardware, no chassis, and no working code. 36 hours later they won two prizes and attracted sponsorship interest from AMD, Microsoft, Espressif, Qualcomm, Ouster, and CubeMars. GUARD.IAM is now being developed as a formal ICON Student Team Project at Purdue under Prof. Yu She (MARS Lab) and Prof. Shaoshuai Mou, targeting ICRA/IROS 2027.
@@ -78,33 +78,39 @@ GUARD.IAM is designed for **confined space intervention** — environments where
 │                                                                      │
 │  ┌──────────────────────┐        ┌──────────────────────────────┐   │
 │  │  Operator Interface  │        │      Sensor Stack            │   │
-│  │                      │        │                              │   │
-│  │  Meta Quest 3        │        │  Intel RealSense T265        │   │
-│  │  Head-tracked MR     │        │  Scanse Sweep V1 LIDAR       │   │
-│  │  Hand tracking       │        │  MPU-6050 IMU                │   │
-│  │  SO-101 leader arms  │        │  Wheel encoders              │   │
+│  │  (planned)            │        │                              │   │
+│  │  Meta Quest 3         │        │  Scanse Sweep V1 LIDAR ×2     │   │
+│  │  Head-tracked MR      │        │  (front + back, merged)       │   │
+│  │  Hand tracking        │        │  Wheel odom — derived from    │   │
+│  │  SO-101 arms          │        │  Phidget BLDC hall counts      │   │
+│  │  (leader side being   │        │                              │   │
+│  │  reworked)            │        │                              │   │
 │  └──────────┬───────────┘        └──────────────┬───────────────┘   │
 │             │ WebSocket                          │ ROS2 topics       │
 │             ▼                                    ▼                   │
 │  ┌──────────────────────────────────────────────────────────────┐   │
 │  │                  AMD Ryzen AI MiniPC                          │   │
-│  │                     ROS2 Jazzy                                │   │
+│  │           ROS2 Jazzy — everything runs here, no               │   │
+│  │           separate onboard microcontroller in the drive loop  │   │
 │  │                                                               │   │
 │  │  guardian_bringup     guardian_localization                   │   │
 │  │  guardian_drive       guardian_arms                           │   │
 │  │  guardian_teleop      guardian_description                    │   │
 │  │                                                               │   │
 │  │  Nav2 ─── EKF (robot_localization) ─── LeRobot inference     │   │
-│  │  Mecanum kinematics ─── /cmd_vel ─── /wheel_rpm              │   │
+│  │  Mecanum kinematics ─── /cmd_vel ─── phidget_bridge_node      │   │
 │  └──────────────────────────┬─────────────────────────────────┘    │
-│                              │ USB Serial                            │
-│              ┌───────────────┴───────────────┐                      │
-│              │     ESP32 Feather V2 ×2        │                      │
-│              │  PID ×4 · encoder feedback     │                      │
-│              └───┬───────┬───────┬───────┬───┘                      │
+│                              │ USB (Phidget VINT hub)                │
+│                              ▼                                        │
+│              ┌────────────────────────────────┐                     │
+│              │  Phidget BLDC motor channels     │                     │
+│              │  custom outer-loop PID ×4,       │                     │
+│              │  active braking (phidget_bldc_   │                     │
+│              │  node.py)                        │                     │
+│              └───┬───────┬───────┬───────┬─────┘                     │
 │                  ▼       ▼       ▼       ▼                           │
 │                 FL      FR      BL      BR                           │
-│           [JGB37-3530 encoder motors × 4]                            │
+│           [Phidget BLDC motors × 4]                                  │
 │           [Mecanum wheels × 4]                                       │
 └──────────────────────────────────────────────────────────────────────┘
 ```
@@ -143,9 +149,9 @@ Nav2 behavior tree: `config/navigate_to_pose.xml` — standard navigate-to-pose 
 
 ### Mecanum Drive & Motor Control
 
-**Packages:** `30_ros2_ws/src/guardian_drive/` · `20_hardware/arduino/`
+**Packages:** `30_ros2_ws/src/guardian_drive/` · `60_scripts/phidget_bldc_node.py`
 
-Two-layer drive architecture: ROS 2 handles kinematics, ESP32 handles per-wheel PID.
+ROS 2 handles kinematics; the outer-loop velocity PID for all four wheels now runs directly against the Phidget BLDC motor channels over USB (VINT hub) — there is no separate onboard microcontroller in the drive loop anymore.
 
 <details>
 <summary><b>Mecanum kinematics</b></summary>
@@ -165,7 +171,7 @@ Peak RPM is clamped while preserving inter-wheel ratios to prevent kinematic dis
 
 </details>
 
-**ESP32 firmware** (`20_hardware/arduino/guardian_motor_control/`): split front/rear — `ESP32_FRONT` and `ESP32_REAR` each run PID loops for two wheels, reading encoder ticks and outputting PWM. `serial_bridge_node.py` forwards `/wheel_rpm` to the ESP32 over USB serial.
+**Phidget BLDC control** (`phidget_bldc_node.py`): one `BLDCMotor` channel per wheel, opened once at startup and held open for the whole session — deliberately not a switching state machine. `BrakingEnabled=True` is set once so the firmware applies real active braking when target velocity is 0, instead of coasting. Velocity feedback is derived by differentiating raw hall-commutation position counts over time (the channel's own `getVelocity()` reports duty cycle, not RPM, so it's unusable as PID feedback directly). The loop is P+I only — derivative gain was confirmed on the bench to amplify hall-based velocity noise into real chattering, so Kd is intentionally not implemented.
 
 ---
 
@@ -173,16 +179,16 @@ Peak RPM is clamped while preserving inter-wheel ratios to prevent kinematic dis
 
 **Package:** `30_ros2_ws/src/guardian_localization/`
 
-All sensors are fused by `robot_localization` EKF at **50 Hz**, producing `/odometry/filtered` for Nav2. GPS is explicitly excluded — GUARD.IAM operates indoors where GPS is unavailable.
+`robot_localization` EKF runs at **50 Hz**, producing `/odometry/filtered` for Nav2. GPS is explicitly excluded — GUARD.IAM operates indoors where GPS is unavailable.
 
 | Sensor | Topic | Rate | Role in EKF |
 |---|---|---|---|
-| Intel RealSense T265 | `/camera/odom/sample` | 30 Hz | Primary pose — visual-inertial odometry, handles long-term drift |
-| Wheel encoders (ESP32) | `/odom` | 50 Hz | Short-term dead reckoning between visual frames |
-| MPU-6050 IMU | `/imu/data` | 100 Hz | Orientation, slip/tilt detection |
-| Scanse Sweep V1 LIDAR | `/scan` | 5 Hz | Obstacle avoidance, optional scan-matching |
+| Wheel odom (Phidget BLDC hall counts) | `/odom` | 50 Hz | Current sole localization input — dead reckoning |
+| Scanse Sweep V1 LIDAR ×2 (front + back) | `/scan_filtered` | 5 Hz | Obstacle avoidance / costmap, not currently fused into the EKF |
 
-`lidar_republisher_node.py` pre-processes the Scanse Sweep output into a standard `LaserScan` compatible with Nav2's costmap.
+The T265 and MPU-6050 IMU from the original build are not part of the current real-hardware pipeline — `guardian_hardware.launch.py` and `ekf_params_real.yaml` only bring up the dual LIDARs and the Phidget-derived wheel odometry. Re-adding a visual or inertial source is on the roadmap but not wired in yet.
+
+Two `l3xz_sweep_scanner` nodes (`sweep_scanner_front`, `sweep_scanner_back`) read the LIDARs over `/dev/lidar_front` / `/dev/lidar_back` (udev-aliased, not raw `/dev/ttyUSB*`, so they survive reboots/replugs). `lidar_republisher_node.py` filters each into a standard `LaserScan`, and `lidar_merger_node.py` combines front + back into one `/scan_filtered` for Nav2's costmap.
 
 ---
 
@@ -190,7 +196,7 @@ All sensors are fused by `robot_localization` EKF at **50 Hz**, producing `/odom
 
 **Package:** `30_ros2_ws/src/guardian_arms/`
 
-Two SO-101 follower arms (LeRobot hardware) mounted on the rover chassis. `arm_manager_node.py` handles joint state publishing and command routing. `teleop_bridge_node.py` relays joint commands from either the Quest 3 hand-tracking interface or the LeRobot policy inference output.
+Two SO-101 follower arms (LeRobot hardware) mounted on the rover chassis. The leader-side arms used for teleoperation are currently being reworked. `arm_manager_node.py` handles joint state publishing and command routing. `teleop_bridge_node.py` relays joint commands from either the Quest 3 hand-tracking interface or the LeRobot policy inference output.
 
 **Training data collection:** `scripts/collect_training_data.py` records synchronized arm joint states + camera frames into the LeRobot dataset format for imitation learning.
 
@@ -198,11 +204,11 @@ Two SO-101 follower arms (LeRobot hardware) mounted on the rover chassis. `arm_m
 
 ---
 
-### Mixed Reality Teleoperation
+### Mixed Reality Teleoperation *(planned)*
 
 **Package:** `30_ros2_ws/src/guardian_teleop/` · `50_teleop/quest_bridge/`
 
-`quest_bridge_node.py` connects to the Meta Quest 3 via WebSocket (`websocket_bridge.py`). Head orientation drives a PTZ camera on the rover. Hand-tracking data is mapped to joint commands for both SO-101 arms via `teleop_bridge_node.py`.
+`quest_bridge_node.py` connects to the Meta Quest 3 via WebSocket (`websocket_bridge.py`). Head orientation is intended to drive a PTZ camera on the rover, with hand-tracking mapped to joint commands for both SO-101 arms via `teleop_bridge_node.py`, once the leader-arm rework is done.
 
 Fallback modes: `joystick_fallback_node.py` (gamepad) and `keyboard_teleop_node.py` (keyboard).
 
@@ -250,11 +256,11 @@ Converts a desired body velocity `(vx, vy, ω)` to four wheel angular velocities
 
 ### EKF Sensor Fusion
 
-`robot_localization` fuses three asynchronous sources at 50 Hz. The T265 provides absolute pose correction to prevent VIO drift; wheel odometry provides high-rate dead reckoning between visual frames; the IMU provides orientation priors that stabilize the EKF on slopes and during acceleration transients.
+`robot_localization` currently runs on wheel odometry alone at 50 Hz — a visual or inertial correction source (T265 / IMU) is not fused in yet, so long-horizon drift is not actively corrected. Re-adding one is on the roadmap.
 
-### PID Wheel Control (ESP32)
+### PID Wheel Control (Phidget BLDC)
 
-Each of the four wheels runs an independent PID loop on the ESP32. Encoder tick counts are compared against the RPM target from the ROS 2 kinematics node, and PWM duty cycle is adjusted to minimize the error. Front and rear ESP32 boards are split to reduce serial latency — each handles exactly two wheels.
+Each of the four wheels runs an independent outer-loop P+I velocity controller in `phidget_bldc_node.py`, comparing a measured RPM (differentiated from the motor's hall-count position) against the target RPM from the ROS 2 kinematics node, and adjusting duty cycle to minimize the error. `BrakingEnabled=True` is set once per channel at startup so the Phidget firmware applies real active braking at zero target velocity, rather than coasting.
 
 ---
 
@@ -280,22 +286,18 @@ AutomousRover_StarkHacks/
 │       ├── amd_minipc_setup.md
 │       └── arduino_setup.md
 ├── 20_hardware/                          ← CAD and embedded firmware
-│   ├── arduino/guardian_motor_control/
-│   │   ├── ESP32_FRONT/                  ← front-left + front-right PID
-│   │   ├── ESP32_REAR/                   ← rear-left + rear-right PID
-│   │   └── ESP_Final/                    ← production firmware
 │   └── cad/                              ← chassis CAD files
 ├── 30_ros2_ws/                           ← ROS 2 Jazzy colcon workspace
 │   └── src/
 │       ├── guardian_bringup/             ← launch files + Nav2 config
 │       ├── guardian_description/         ← URDF/xacro robot model
-│       ├── guardian_drive/               ← mecanum kinematics + serial bridge
+│       ├── guardian_drive/               ← mecanum kinematics + phidget_bridge_node
 │       │   └── guardian_drive/
-│       │       ├── mecanum_kinematics_node.py
-│       │       └── serial_bridge_node.py
-│       ├── guardian_localization/        ← LIDAR republisher, EKF prep
+│       │       └── mecanum_kinematics_node.py
+│       ├── guardian_localization/        ← LIDAR republisher/merger, EKF prep
 │       ├── guardian_arms/                ← dual SO-101 arm control + LeRobot bridge
-│       └── guardian_teleop/              ← Quest 3 + joystick + keyboard teleop
+│       ├── guardian_teleop/              ← Quest 3 + joystick + keyboard teleop (planned)
+│       └── phidgets_drivers/             ← Phidget VINT driver stack
 ├── 40_lerobot/                           ← imitation learning pipeline
 │   ├── datasets/
 │   │   ├── open_box/                     ← 4-episode bimanual box dataset
@@ -306,10 +308,11 @@ AutomousRover_StarkHacks/
 │   │   └── train_dual_arm.sh
 │   ├── eval/
 │   └── configs/guardian_policy_config.yaml
-├── 50_teleop/                            ← Meta Quest 3 WebSocket bridge
+├── 50_teleop/                            ← Meta Quest 3 WebSocket bridge (planned)
 │   └── quest_bridge/
 │       └── websocket_bridge.py
-└── 60_scripts/                           ← convenience scripts
+└── 60_scripts/                           ← convenience scripts + Phidget drive node
+    ├── phidget_bldc_node.py              ← outer-loop PID per wheel, active braking
     ├── run_guardian.sh                   ← one-command full system launch
     ├── build_workspace.sh
     └── setup_amd_minipc.sh
@@ -324,15 +327,13 @@ AutomousRover_StarkHacks/
 - **Ubuntu 24.04** + **ROS 2 Jazzy**
 - **Nav2**: `ros-jazzy-navigation2 ros-jazzy-nav2-bringup`
 - **robot_localization**: `ros-jazzy-robot-localization`
-- **RealSense**: `ros-jazzy-realsense2-camera`
+- **Phidget22** (drive motor control): `libphidget22` + Python `Phidget22` bindings
 - **LeRobot** (Python): `pip install lerobot`
-- **PlatformIO** (for ESP32 firmware)
 
 ```bash
 sudo apt install \
   ros-jazzy-navigation2 ros-jazzy-nav2-bringup \
   ros-jazzy-robot-localization \
-  ros-jazzy-realsense2-camera \
   ros-jazzy-teleop-twist-keyboard
 ```
 
@@ -351,18 +352,6 @@ rosdep install --from-paths src --ignore-src -r -y
 # Build
 colcon build --symlink-install
 source install/setup.bash
-```
-
-### Flash ESP32 Firmware
-
-```bash
-# Front wheels (FL + FR)
-cd 20_hardware/arduino/guardian_motor_control/ESP32_FRONT
-pio run --target upload
-
-# Rear wheels (BL + BR)
-cd ../ESP32_REAR
-pio run --target upload
 ```
 
 ---
@@ -402,7 +391,7 @@ ros2 launch guardian_bringup guardian.launch.py use_sim:=false
 ros2 run guardian_teleop keyboard_teleop_node
 ```
 
-### Meta Quest 3 bridge
+### Meta Quest 3 bridge (planned)
 
 ```bash
 python3 50_teleop/quest_bridge/websocket_bridge.py
@@ -418,10 +407,8 @@ python3 50_teleop/quest_bridge/websocket_bridge.py
 | `wheel_base_length` | 0.313588 m | Front-to-rear wheel center distance, CAD-measured |
 | `wheel_base_width` | 0.390755 m | Left-to-right wheel center distance, CAD-measured |
 | `max_rpm` | 170.0 | Maximum wheel RPM (DCM4109 rated max, clamped with ratio preservation) |
-| EKF rate | 50 Hz | `robot_localization` filter update rate |
-| T265 rate | 30 Hz | Visual-inertial odometry input rate |
-| IMU rate | 100 Hz | MPU-6050 orientation input rate |
-| LIDAR rate | 5 Hz | Scanse Sweep scan rate |
+| EKF rate | 50 Hz | `robot_localization` filter update rate (wheel odom only, currently) |
+| LIDAR rate | 5 Hz | Scanse Sweep scan rate, per unit (×2, front + back) |
 
 Config files: `30_ros2_ws/src/guardian_bringup/config/`
 
@@ -432,12 +419,11 @@ Config files: `30_ros2_ws/src/guardian_bringup/config/`
 | Topic | Type | Publisher | Subscriber |
 |---|---|---|---|
 | `/cmd_vel` | `Twist` | Nav2 / teleop nodes | mecanum_kinematics_node |
-| `/wheel_rpm` | `Float32MultiArray` | mecanum_kinematics_node | serial_bridge_node |
-| `/odom` | `Odometry` | serial_bridge_node (ESP32) | EKF |
-| `/camera/odom/sample` | `Odometry` | RealSense T265 | EKF |
-| `/imu/data` | `Imu` | ESP32 (MPU-6050) | EKF |
+| `/wheel_rpm` | `Float32MultiArray` | mecanum_kinematics_node | phidget_bridge_node |
+| `/odom` | `Odometry` | phidget_bridge_node (Phidget BLDC) | EKF |
 | `/odometry/filtered` | `Odometry` | robot_localization EKF | Nav2 |
-| `/scan` | `LaserScan` | lidar_republisher_node | Nav2 costmap |
+| `/scan`, `/scan_back` | `LaserScan` | sweep_scanner_front, sweep_scanner_back | lidar_republisher_node |
+| `/scan_filtered` | `LaserScan` | lidar_merger_node | Nav2 costmap |
 | `/joint_states` | `JointState` | arm_manager_node | LeRobot / teleop |
 | `/arm/joint_commands` | `JointTrajectoryPoint` | teleop_bridge / LeRobot | arm_manager_node |
 
@@ -446,16 +432,13 @@ Config files: `30_ros2_ws/src/guardian_bringup/config/`
 ## Dependencies
 
 ### ROS 2 Packages
-`rclpy` · `rclcpp` · `nav2` · `robot_localization` · `realsense2_camera` · `sensor_msgs` · `geometry_msgs` · `nav_msgs` · `trajectory_msgs`
+`rclpy` · `rclcpp` · `nav2` · `robot_localization` · `phidgets_drivers` · `sensor_msgs` · `geometry_msgs` · `nav_msgs` · `trajectory_msgs`
 
 ### Python
-`lerobot` · `numpy` · `websockets` · `pyserial`
-
-### Embedded
-**PlatformIO** · ESP32 Feather V2 · `PID_v1` library
+`lerobot` · `numpy` · `websockets` · `Phidget22`
 
 ### Hardware
-**AMD Ryzen AI MiniPC** · **SO-101 robotic arms ×2** · **Intel RealSense T265** · **Scanse Sweep V1 LIDAR** · **JGB37-3530 encoder motors ×4** · **VEXpro 6" mecanum wheels ×4** · **Meta Quest 3**
+**AMD Ryzen AI MiniPC** (runs the full stack — no separate microcontroller in the drive loop) · **SO-101 robotic arms ×2** (leader side being reworked) · **Scanse Sweep V1 LIDAR ×2** (front + back) · **Phidget BLDC motors ×4** (via VINT/USB) · **VEXpro 6" mecanum wheels ×4** · **Meta Quest 3** *(planned MR teleop)*
 
 ---
 
