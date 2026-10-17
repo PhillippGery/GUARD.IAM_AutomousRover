@@ -44,9 +44,9 @@
 
 ## Demo
 
-<img src="70_media/photos/guardian_rover.PNG" width="500" />
+<img src="70_media/photos/guardian_rover_v3.jpg" width="500" />
 
-*GUARD.IAM v1 — holonomic mecanum platform with dual SO-101 arms, dual Scanse Sweep LIDAR, and AMD Ryzen AI compute. Built in 36 hours at StarkHacks 2026; drive, sensing, and the teleop/arm stack have since moved on from this v1 build (see Subsystems below).*
+*GUARD.IAM, current build — mecanum platform with dual arms, PTZ sensor mast, and AMD Ryzen AI compute, bearing Purdue colors.*
 
 ![Bimanual manipulation demo](https://github.com/user-attachments/assets/58b780d2-d638-4a53-876a-c61e4d4fe11c)
 
