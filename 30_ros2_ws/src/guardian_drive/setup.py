@@ -25,6 +25,7 @@ setup(
             'serial_bridge_node = guardian_drive.serial_bridge_node:main',
             'dummy_odom_node = guardian_drive.dummy_odom_node:main',
             'phidget_bridge_node = guardian_drive.phidget_bridge_node:main',
+            'phidget_bldc_node = guardian_drive.phidget_bldc_node:main',
         ],
     },
 )

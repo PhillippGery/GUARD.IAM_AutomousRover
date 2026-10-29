@@ -16,7 +16,7 @@ None published or subscribed directly — see the launch files below for which p
 
 | File | Purpose |
 |------|---------|
-| `guardian_hardware.launch.py` | **Real hardware only.** Everything physically attached to the robot: robot/joint state publishers, the drive chain (`mecanum_kinematics_node`, `phidget_bridge_node`), both Sweep LIDARs + republisher/merger chain, and Xbox teleop. No arguments, no mode — always the same, always on. Every node has `respawn=True`, so this is meant to be started once and left running for the whole session; if a USB glitch or flaky LIDAR connector kills a node, `ros2 launch` brings it back on its own. |
+| `guardian_hardware.launch.py` | **Real hardware only.** Everything physically attached to the robot: robot/joint state publishers, the drive chain (`mecanum_kinematics_node`, `phidget_bridge_node`), both Sweep LIDARs + republisher/merger chain, and Xbox teleop. One argument, `drive:=bridge` (default, `phidget_bridge_node`) or `drive:=bldc` (`phidget_bldc_node`, custom PID + active braking); everything else is always on. Every node has `respawn=True`, so this is meant to be started once and left running for the whole session; if a USB glitch or flaky LIDAR connector kills a node, `ros2 launch` brings it back on its own. |
 | `guardian.launch.py` | The software stack: Nav2, SLAM (mapping) or AMCL+map_server (navigation), RViz. In sim this is still the single entry point (Gazebo, gz bridge, robot description, and teleop are all included here too, since sim doesn't need the hardware split). On real hardware it launches **none** of the physical robot — it assumes `guardian_hardware.launch.py` is already running separately, so this file can be killed and relaunched freely while iterating on nav2/SLAM params without ever dropping the LIDAR/motor/teleop connections. |
 
 On real hardware, start `guardian_hardware.launch.py` first and leave it running; `guardian.launch.py use_sim:=false ...` on top of it is what you'll actually kill/relaunch while testing.
@@ -47,7 +47,7 @@ in sim, left empty auto-selects mode-based: on for mapping, off for navigation),
 point in sim, AMCL global localization on real hardware), `world`/`spawn_x`/
 `spawn_y`/`spawn_z` (sim only). See `guardian.launch.py`'s `DeclareLaunchArgument`
 calls for the full list and descriptions. `guardian_hardware.launch.py` takes
-no arguments at all.
+one argument, `drive` (`bridge`|`bldc`, default `bridge`). `guardiam_hw_bldc` is the alias for `drive:=bldc`.
 
 The aliases in `60_scripts/guardiam_env.sh` (`guardiam_sim`, `guardiam_hw`,
 `guardiam_map`, `guardiam_real`) wrap the common cases — `guardiam_hw` is the

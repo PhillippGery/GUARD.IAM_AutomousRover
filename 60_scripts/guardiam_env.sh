@@ -39,6 +39,10 @@ alias guardiam_sim='source install/setup.bash && ros2 launch guardian_bringup gu
 # guardiam_real own only the software stack (Nav2, SLAM/AMCL, RViz) on top
 # and assume guardiam_hw is already running. Start guardiam_hw first.
 alias guardiam_hw='ros2 launch guardian_bringup guardian_hardware.launch.py'
+# Same hardware launch, but with the BLDCMotor + custom-PID drive node
+# (phidget_bldc_node, real active braking) instead of phidget_bridge_node.
+# Run ONE of guardiam_hw / guardiam_hw_bldc, never both (both own /odom + TF).
+alias guardiam_hw_bldc='ros2 launch guardian_bringup guardian_hardware.launch.py drive:=bldc'
 alias guardiam_map='ros2 launch guardian_bringup guardian.launch.py use_sim:=false mode:=mapping'
 alias guardiam_real='ros2 launch guardian_bringup guardian.launch.py use_sim:=false mode:=navigation'
 # Graceful shutdown first (SIGINT to ros2 launch, same as Ctrl+C — lets

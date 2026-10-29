@@ -15,15 +15,20 @@
 # LIDAR connector) kills a node, ros2 launch brings it back on its own
 # without you needing to notice or intervene.
 #
-# Usage: ros2 launch guardian_bringup guardian_hardware.launch.py
+# Usage: ros2 launch guardian_bringup guardian_hardware.launch.py [drive:=bridge|bldc]
+#   drive:=bridge (default) -> phidget_bridge_node (MotorVelocityController)
+#   drive:=bldc             -> phidget_bldc_node (BLDCMotor + custom PID, active braking)
+# Both publish /odom + odom->base_link, so exactly one is ever launched.
 
 import os
 
 import xacro
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import ExecuteProcess, OpaqueFunction, RegisterEventHandler
+from launch.actions import (DeclareLaunchArgument, ExecuteProcess, OpaqueFunction,
+                            RegisterEventHandler)
 from launch.event_handlers import OnProcessIO
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node, SetParameter
 
 
@@ -95,6 +100,36 @@ def launch_setup(context, *args, **kwargs):
             return [sweep_scanner_back_node]
         return None
 
+    # Drive-mode switch. Default 'bridge' keeps plain `guardiam_hw` (and the
+    # systemd unit that calls this file with no args) behaving exactly as before.
+    drive_mode = LaunchConfiguration('drive').perform(context)
+    if drive_mode == 'bldc':
+        drive_node = Node(
+            package='guardian_drive',
+            executable='phidget_bldc_node',
+            name='phidget_bldc_node',
+            parameters=[robot_params],
+            output='screen',
+            respawn=True,
+            respawn_delay=2.0,
+        )
+    elif drive_mode == 'bridge':
+        drive_node = Node(
+            package='guardian_drive',
+            executable='phidget_bridge_node',
+            name='phidget_bridge_node',
+            parameters=[robot_params],
+            # libphidget22 can fail to enumerate the VINT hub at startup
+            # (confirmed live: real USB bus instability, unrelated to any
+            # of our code — raw lsusb sees the device fine but libphidget22
+            # still reports "No Phidgets were detected at all") — without
+            # respawn the node just exits and never comes back.
+            respawn=True,
+            respawn_delay=2.0,
+        )
+    else:
+        raise RuntimeError(f"drive:='{drive_mode}' invalid — use 'bridge' or 'bldc'")
+
     actions = [
         SetParameter('use_sim_time', False),
 
@@ -122,19 +157,7 @@ def launch_setup(context, *args, **kwargs):
             respawn=True,
             respawn_delay=2.0,
         ),
-        Node(
-            package='guardian_drive',
-            executable='phidget_bridge_node',
-            name='phidget_bridge_node',
-            parameters=[robot_params],
-            # libphidget22 can fail to enumerate the VINT hub at startup
-            # (confirmed live: real USB bus instability, unrelated to any
-            # of our code — raw lsusb sees the device fine but libphidget22
-            # still reports "No Phidgets were detected at all") — without
-            # respawn the node just exits and never comes back.
-            respawn=True,
-            respawn_delay=2.0,
-        ),
+        drive_node,   # phidget_bridge_node or phidget_bldc_node, per drive:=
 
         # ── Scanse Sweep LIDARs (front + back) → merged /scan_filtered ────
         # serial_port uses /dev/lidar_front and /dev/lidar_back, NOT raw
@@ -249,5 +272,8 @@ def launch_setup(context, *args, **kwargs):
 
 def generate_launch_description():
     return LaunchDescription([
+        DeclareLaunchArgument(
+            'drive', default_value='bridge', choices=['bridge', 'bldc'],
+            description='Drive node: bridge=phidget_bridge_node, bldc=phidget_bldc_node'),
         OpaqueFunction(function=launch_setup),
     ])

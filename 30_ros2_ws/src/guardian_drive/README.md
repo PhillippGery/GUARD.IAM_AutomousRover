@@ -10,6 +10,7 @@ Mecanum wheel kinematics, the Phidgets motor bridge, and a dummy odometry source
 |------|---------|
 | `mecanum_kinematics_node` | Converts `/cmd_vel` Twist → 4x wheel RPM targets |
 | `phidget_bridge_node` (owner: Vedant) | Drives the 4x Phidget DCC1120 controllers over VINT/USB, reads hall-based wheel velocity back, publishes `/odom` + TF. This is the node actually wired into `guardian.launch.py` for real hardware. |
+| `phidget_bldc_node` (owner: Vedant) | Alternative to `phidget_bridge_node`: `BLDCMotor` channels with an outer-loop P+I velocity PID and `BrakingEnabled=True` for real active braking. Same `/wheel_rpm` in, `/odom` + TF out. Select with `guardiam_hw_bldc` (`drive:=bldc`). Never run alongside `phidget_bridge_node`. |
 | `serial_bridge_node` (alias `guardian_drive_node`) | Pre-Phidgets ESP32-over-serial bridge. Kept in the codebase but **not launched anywhere** — the robot no longer has ESP32 boards. |
 | `dummy_odom_node` | Integrates `/cmd_vel` into fake `/odom` + TF, for testing without a connected drive base |
 

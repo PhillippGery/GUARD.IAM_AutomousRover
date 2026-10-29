@@ -77,3 +77,27 @@ phidget_bridge_node:
     odom_rate_hz: 50.0
     odom_frame: odom
     base_frame: base_link
+
+# Owner: Vedant. Alternative drive node (`guardiam_hw_bldc` / drive:=bldc):
+# BLDCMotor channels + outer-loop P+I velocity PID with real active braking.
+# Same /wheel_rpm in, same /odom + TF out as phidget_bridge_node, so only ONE
+# of the two ever runs. Gains are bench-tuned starting values, see the node's
+# docstring. wheel_radius/base dims/max_wheel_rpm come from the /** wildcard.
+phidget_bldc_node:
+  ros__parameters:
+    hub_serial: 782265
+    wheel_hub_ports: [0, 5, 1, 4]
+    wheel_directions: [1, -1, 1, -1]
+    position_rescale_factor: 0.003676   # 1/272 revs per hall count (UNVERIFIED, see node docstring)
+    kp_custom: 0.012
+    ki_custom: 0.01
+    integral_limit: 15.0
+    control_rate_hz: 100.0
+    current_limit: 15.0
+    acceleration: 100.0        # duty/s, NOT RPM/s (BLDCMotor units)
+    command_timeout_sec: 0.3
+    publish_odom: true
+    publish_tf: true
+    odom_rate_hz: 50.0
+    odom_frame: odom
+    base_frame: base_link
