@@ -1,89 +1,72 @@
-# Drive stop tests: how to collect the data
+# Drive stop tests
 
-Goal: record how far and how fast the rover stops with each of the two drive controllers, so we can compare them and fit the simulator. Two runs, same floor, same day:
+Goal: measure how the two drive controllers stop, and get clean traces to fit the simulator.
 
 | Run | Launch alias | Node | Label |
 |-----|--------------|------|-------|
-| 1 | `guardiam_hw` | `phidget_bridge_node` (MotorVelocityController) | `bridge` |
-| 2 | `guardiam_hw_bldc` | `phidget_bldc_node` (BLDCMotor, custom PID, active braking) | `bldc` |
+| baseline | `guardiam_hw` | `phidget_bridge_node` (MotorVelocityController) | `bridge` |
+| test | `guardiam_hw_bldc` | `phidget_bldc_node` (BLDCMotor, custom PID, braking on) | `bldc` |
 
-Each run takes about 15 minutes. Do not edit any code or parameters between runs.
+Run both on the same floor, the same day, with the same battery level and robot setup. Do not change any code or params between the two.
 
-## Before you start
+## 0. Get the code and build
 
-- **Two people.** One at the keyboard, one standing by the robot (spotter) with a hand near the power switch.
-- **Floor.** Hard, flat, same spot for both runs. Clear 3 m ahead and 3 m to the right of the start mark. Nobody walks into that area during a trial.
-- **Start mark.** Put a tape line under the front-left corner of the robot, plus a tape measure running along the direction of travel (forward axis, then strafe axis).
-- **Arms stowed.** Same pose for both runs, and don't change the payload.
-- **Battery.** Charged to about the same level for both runs (note the voltage at the start of each).
-- **Latest code.** On the MiniPC:
-  ```
-  cd ~/GUARD.IAM_AutomousRover
-  git pull          # or check out the commit "Add phidget_bldc_node to guardian_drive..."
-  cb                # colcon build, then source
-  ```
+Use the `feature/bldc-stop-test-clean` branch of the `guardiam3` remote (not `origin`, which is Phillipp's; and not `feature/bldc-stop-test`, which has Jonathan's bridge rewrite merged in):
 
-## Safety
-
-- The rover drives up to 0.6 m/s forward or sideways and rotates at 0.6 rad/s, for 1.5 s per trial, then stops. It will move.
-- To stop immediately: press **Ctrl+C** in the script terminal (it sends zero velocity), run `killros`, or hit the power switch.
-- If a wheel doesn't move, or the robot drifts or lurches on its own, stop and write it down. Do not keep running. The FR wheel has had connection faults before (PhidgetException 0x42).
-
-## Run 1: bridge (current default)
-
-Terminal A:
-```
-guardiam_hw
-```
-Wait until the log says all four wheels are driving (no "NOT FOUND" errors).
-
-Terminal B:
 ```
 cd ~/GUARD.IAM_AutomousRover
-python3 60_scripts/bench/stop_test.py --label bridge --measure
+git fetch guardiam3
+git checkout -b feature/bldc-stop-test-clean guardiam3/feature/bldc-stop-test-clean   # or just `git checkout feature/bldc-stop-test-clean` if it exists
+cb
 ```
 
-The script tells you each trial ("fwd @ 0.2 rep 1/3", ...) and waits for Enter:
-1. Move the robot back so the front-left corner is on the start mark.
-2. Make sure the spotter and floor are clear.
-3. Press Enter. The robot drives 1.5 s and stops.
-4. Measure how far the same corner is past the mark (tape measure, in metres, e.g. `0.12`) and type it in. For rotation trials, skip with Enter. For strafe trials, measure along the strafe direction.
-5. Repeat. 27 trials total (fwd, strafe, rot x 3 speeds x 3 repeats).
+This branch's two drive nodes both publish `/wheel_rpm_measured` (needed by the logger), and the BLDC node has the measured-RPM filter fix (`ema_alpha`, see "Known issue" below).
 
-When it finishes, it prints `saved to ~/stop_tests/bridge_<timestamp>/`.
+## Setup and safety
 
-Shorter first pass if you're short on time (do this before the full run):
+- Hard flat floor, 3 m clear ahead and to the right of a start mark. Tape a line under the robot's front-left corner and run a tape measure along the direction of travel.
+- Arms stowed in the same pose every time. Note battery voltage.
+- A spotter near the power switch. The robot moves up to 0.6 m/s for 1.5 s per trial.
+- To stop: Ctrl+C in the test terminal (sends zero), `killros`, or the power switch.
+
+## 1. First, with the wheels off the ground
+
+The BLDC node's filter bug is fixed, which makes the feedback about 3x stronger than the gains were tuned for. Before driving on the floor, lift the robot, run `guardiam_hw_bldc`, and command a slow forward move (e.g. keyboard or `ros2 topic pub /cmd_vel ...` at 0.2 m/s). All four wheels should settle smoothly near the target with no buzzing or hunting. If they oscillate, stop and lower `kp_custom` in `robot_params.yaml` (try 0.006), rebuild, and retry.
+
+## 2. Calibrate the odometry scale (5 min)
+
 ```
-python3 60_scripts/bench/stop_test.py --label bridge --axes fwd --speeds 0.4 --repeats 5 --measure
+guardiam_hw_bldc                       # terminal A
+python3 60_scripts/bench/stop_test.py --label bldc_cal --calibrate   # terminal B
 ```
 
-## Run 2: bldc
+Three drives at 0.2 m/s. After each, measure total distance from the start mark to the same corner of the robot and type it in. It prints `tape / odom`. If it isn't about 1.0, multiply `position_rescale_factor` (bldc) or `rescale_factor` (bridge) by that number, rebuild, and run it again. Do this before the real runs, because everything else depends on the odom scale.
 
-1. Stop everything: Ctrl+C in Terminal A, then `killros`. Never run both drive nodes at once.
-2. Terminal A:
-   ```
-   guardiam_hw_bldc
-   ```
-3. Terminal B: same command, new label:
-   ```
-   python3 60_scripts/bench/stop_test.py --label bldc --measure
-   ```
-   Use the same arguments (full run or shortened) as Run 1.
+## 3. Main runs
 
-## What to send back
+Run each of these twice, once per controller (labels `bldc` and `bridge`), restarting the launch in between and never running both drive nodes at once:
 
-Zip both output folders and send them to Vedant:
 ```
-cd ~ && zip -r stop_tests.zip stop_tests/
+python3 60_scripts/bench/stop_test.py --label bldc   --axes fwd,strafe --speeds 0.4 --repeats 5
+python3 60_scripts/bench/stop_test.py --label bridge --axes fwd,strafe --speeds 0.4 --repeats 5
 ```
-Also include a note with:
-- Date, floor type, battery voltage before each run
-- Anything odd: a wheel that lagged, a fault in the log, a trial you had to redo
-- Which commit was running (`git log --oneline -1`)
 
-## What's in the output
+Add `--speeds 0.2,0.4,0.6 --axes fwd,strafe,rot --repeats 3` for the full set later.
 
-- `trials.csv`: one row per trial: odom stop distance, odom rotation, time until still, tape-measured distance.
-- `ts_N.csv`: time series for trial N: command, wheel RPM x4, odom pose and velocity.
+For every trial: put the robot on the mark, press Enter, then measure.
+- fwd / strafe: total distance (m) from the mark to the same robot corner.
+- rot: total rotation in degrees (mark a line along the robot's side first).
 
-Odometry is computed from wheel encoders, so it can't see slip. That is why the tape measurements matter.
+The script asks for battery voltage and notes at the start, and records the commit hash.
+
+## 4. Look at the results
+
+```
+python3 60_scripts/bench/analyze_stop_tests.py ~/stop_tests/bldc_2026* ~/stop_tests/bridge_2026*
+```
+
+It prints stop distance, time until still, tape-vs-odom scale, and how close the achieved speed gets to the commanded speed, per controller, axis and speed.
+
+## Known issue found in the first dataset
+
+The first BLDC run (before this branch) read tape/odom = 2.9 on forward trials, nearly constant across speeds. The cause was the BLDC node's velocity filter: `0.1*raw + 0.7*prev` has weights that sum to 0.8, so measured RPM settled at 1/3 of the true speed. Odom under-reported by 3x and the PID pushed wheels past their target. The filter is now `a*raw + (1-a)*prev` with `ema_alpha: 0.3`. The earlier BLDC data is not valid for judging the controller, so redo the BLDC run.

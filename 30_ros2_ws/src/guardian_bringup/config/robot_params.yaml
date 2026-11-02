@@ -93,6 +93,7 @@ phidget_bldc_node:
     ki_custom: 0.01
     integral_limit: 15.0
     control_rate_hz: 100.0
+    ema_alpha: 0.3             # measured-RPM smoothing; see node (was a buggy 0.1/0.7 pair)
     current_limit: 15.0
     acceleration: 100.0        # duty/s, NOT RPM/s (BLDCMotor units)
     command_timeout_sec: 0.3

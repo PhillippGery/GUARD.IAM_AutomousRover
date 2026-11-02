@@ -92,6 +92,15 @@ class PhidgetBLDCNode(Node):
             # a permanent phantom duty command at rest. 0.1 is a much
             # tighter cap; may still need tuning.
         self.declare_parameter('control_rate_hz', 100.0)
+        # EMA smoothing on measured RPM: m = a*raw + (1-a)*m. Replaces a
+        # hard-coded 0.1*raw + 0.7*m whose weights summed to 0.8, which
+        # made the filter's DC gain 1/3: measured RPM read ~1/3 of true
+        # speed, so odom under-reported and the PID drove the wheels past
+        # their target. 0.3 keeps the old filter pole (0.7), so lag is
+        # unchanged but the DC gain is now 1. Effective loop gain on the
+        # true speed is therefore ~3x higher than the gains were tuned
+        # at: re-check kp/ki (wheels lifted first) before trusting them.
+        self.declare_parameter('ema_alpha', 0.3)
 
         # ── Motor config ─────────────────────────────────────────────────
         self.declare_parameter('current_limit', 15.0)
@@ -130,6 +139,7 @@ class PhidgetBLDCNode(Node):
         self._ki = float(p('ki_custom').value)
         self._integral_limit = float(p('integral_limit').value)
         control_rate = float(p('control_rate_hz').value)
+        self._ema_alpha = float(p('ema_alpha').value)
 
         self._current_limit = float(p('current_limit').value)
         self._accel = float(p('acceleration').value)
@@ -171,6 +181,12 @@ class PhidgetBLDCNode(Node):
         self._last_cmd_time = self.get_clock().now()
         self.create_subscription(
             Float32MultiArray, '/wheel_rpm', self._wheel_rpm_callback, 10)
+
+        # Measured wheel RPM [FL,FR,BL,BR], same sign convention as
+        # /wheel_rpm, for bench logging (60_scripts/bench/stop_test.py).
+        self._meas_pub = self.create_publisher(
+            Float32MultiArray, '/wheel_rpm_measured', 10)
+        self.create_timer(0.02, self._publish_measured)
 
         self._odom_pub = None
         self._tf_broadcaster = None
@@ -388,7 +404,8 @@ class PhidgetBLDCNode(Node):
             # alpha=0.1 is a starting value, not yet bench-tuned — lower
             # values smooth harder but add lag; watch for whether real
             # step-changes in target now feel sluggish to respond to.
-            self._measured_rpm[i] = (0.1 * raw_rpm) + (0.7 * self._measured_rpm[i])
+            a = self._ema_alpha
+            self._measured_rpm[i] = a * raw_rpm + (1.0 - a) * self._measured_rpm[i]
 
             target = self._target_rpm[i]
             error = target - self._measured_rpm[i]
@@ -444,6 +461,11 @@ class PhidgetBLDCNode(Node):
                     f'{WHEEL_NAMES[i]}: setTargetVelocity failed ({e.details})')
 
     # ── Odometry — reuses measured_rpm from the control loop directly ──
+    def _publish_measured(self):
+        msg = Float32MultiArray()
+        msg.data = [float(v) for v in self._measured_rpm]
+        self._meas_pub.publish(msg)
+
     def _read_wheel_rad_s(self, index):
         return self._measured_rpm[index] * 2.0 * math.pi / 60.0
 

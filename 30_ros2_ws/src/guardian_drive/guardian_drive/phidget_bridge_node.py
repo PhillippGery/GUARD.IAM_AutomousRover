@@ -153,6 +153,12 @@ class PhidgetBridgeNode(Node):
         self.create_subscription(
             Float32MultiArray, '/wheel_rpm', self._wheel_rpm_callback, 10)
 
+        # Measured wheel RPM [FL,FR,BL,BR], same sign convention as
+        # /wheel_rpm, for bench logging (60_scripts/bench/stop_test.py).
+        self._meas_pub = self.create_publisher(
+            Float32MultiArray, '/wheel_rpm_measured', 10)
+        self.create_timer(0.02, self._publish_measured)
+
         self._odom_pub = None
         self._tf_broadcaster = None
         if self._publish_odom:
@@ -300,6 +306,12 @@ class PhidgetBridgeNode(Node):
             return 0.0
         rpm *= self._dirs[index]
         return rpm * 2.0 * math.pi / 60.0
+
+    def _publish_measured(self):
+        msg = Float32MultiArray()
+        msg.data = [float(self._read_wheel_rad_s(i) * 60.0 / (2.0 * math.pi))
+                    for i in range(4)]
+        self._meas_pub.publish(msg)
 
     def _odom_timer(self):
         now = self.get_clock().now()
